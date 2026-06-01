@@ -14,9 +14,15 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
+import { ja } from 'date-fns/locale';
 import { CatMood, DiaryEntry, moodEmojis, moodLabels } from '../types';
-import { saveDiaryEntry, getDiaryEntryById } from '../storage/diaryStorage';
+import {
+  saveDiaryEntry,
+  getDiaryEntryById,
+  deleteDiaryEntry,
+} from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 
 type Props = {
@@ -32,7 +38,8 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   const [content, setContent] = useState('');
   const [mood, setMood] = useState<CatMood>('happy');
   const [photoUri, setPhotoUri] = useState<string | undefined>();
-  const [date, setDate] = useState(new Date().toISOString());
+  const [date, setDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (editId) {
@@ -48,7 +55,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       setContent(entry.content);
       setMood(entry.mood);
       setPhotoUri(entry.photoUri);
-      setDate(entry.date);
+      setDate(new Date(entry.date));
     }
   }
 
@@ -65,6 +72,13 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     }
   }
 
+  function handleDateChange(_event: unknown, selectedDate?: Date) {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDate(selectedDate);
+    }
+  }
+
   async function handleSave() {
     if (!title.trim()) {
       Alert.alert('エラー', 'タイトルを入力してください');
@@ -73,17 +87,32 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
 
     const entry: DiaryEntry = {
       id: editId || Date.now().toString(),
-      date,
+      date: date.toISOString(),
       title: title.trim(),
       content: content.trim(),
       mood,
       photoUri,
-      createdAt: editId ? date : new Date().toISOString(),
+      createdAt: editId ? date.toISOString() : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     await saveDiaryEntry(entry);
     navigation.goBack();
+  }
+
+  function handleDelete() {
+    if (!editId) return;
+    Alert.alert('削除確認', 'この日記を削除しますか？', [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除',
+        style: 'destructive',
+        onPress: async () => {
+          await deleteDiaryEntry(editId);
+          navigation.goBack();
+        },
+      },
+    ]);
   }
 
   return (
@@ -92,9 +121,25 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        <Text style={styles.dateText}>
-          {format(new Date(date), 'yyyy年M月d日')}
-        </Text>
+        <TouchableOpacity
+          style={styles.dateButton}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text style={styles.dateButtonLabel}>📅 日付</Text>
+          <Text style={styles.dateButtonValue}>
+            {format(date, 'yyyy年M月d日(E)', { locale: ja })}
+          </Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
 
         <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
           {photoUri ? (
@@ -144,6 +189,12 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
           multiline
           textAlignVertical="top"
         />
+
+        {editId && (
+          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+            <Text style={styles.deleteButtonText}>🗑 この日記を削除</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -164,11 +215,23 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
   },
-  dateText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+  dateButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 20,
+  },
+  dateButtonLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  dateButtonValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
   },
   photoButton: {
     marginBottom: 24,
@@ -245,6 +308,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 150,
     marginBottom: 24,
+  },
+  deleteButton: {
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#E55',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  deleteButtonText: {
+    color: '#E55',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   saveButton: {
     backgroundColor: '#FF9966',

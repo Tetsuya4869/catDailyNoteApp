@@ -1,23 +1,27 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   StyleSheet,
   Image,
-  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { DiaryEntry, moodEmojis } from '../types';
-import { getDiaryEntries, deleteDiaryEntry } from '../storage/diaryStorage';
+import { getDiaryEntries } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
+};
+
+type Section = {
+  title: string;
+  data: DiaryEntry[];
 };
 
 export default function HomeScreen({ navigation }: Props) {
@@ -31,29 +35,28 @@ export default function HomeScreen({ navigation }: Props) {
 
   async function loadEntries() {
     const data = await getDiaryEntries();
-    setEntries(data);
+    const sorted = [...data].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    setEntries(sorted);
   }
 
-  function handleDelete(id: string) {
-    Alert.alert('削除確認', 'この日記を削除しますか？', [
-      { text: 'キャンセル', style: 'cancel' },
-      {
-        text: '削除',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteDiaryEntry(id);
-          loadEntries();
-        },
-      },
-    ]);
-  }
+  const sections = useMemo<Section[]>(() => {
+    const groups = new Map<string, DiaryEntry[]>();
+    entries.forEach((entry) => {
+      const key = format(new Date(entry.date), 'yyyy年M月', { locale: ja });
+      const arr = groups.get(key) || [];
+      arr.push(entry);
+      groups.set(key, arr);
+    });
+    return Array.from(groups, ([title, data]) => ({ title, data }));
+  }, [entries]);
 
   function renderItem({ item }: { item: DiaryEntry }) {
     return (
       <TouchableOpacity
         style={styles.card}
         onPress={() => navigation.navigate('DiaryEntry', { id: item.id })}
-        onLongPress={() => handleDelete(item.id)}
       >
         {item.photoUri && (
           <Image source={{ uri: item.photoUri }} style={styles.photo} />
@@ -68,11 +71,22 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.title} numberOfLines={1}>
             {item.title}
           </Text>
-          <Text style={styles.preview} numberOfLines={2}>
-            {item.content}
-          </Text>
+          {!!item.content && (
+            <Text style={styles.preview} numberOfLines={2}>
+              {item.content}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
+    );
+  }
+
+  function renderSectionHeader({ section }: { section: Section }) {
+    return (
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionHeaderText}>{section.title}</Text>
+        <Text style={styles.sectionHeaderCount}>{section.data.length}件</Text>
+      </View>
     );
   }
 
@@ -85,11 +99,13 @@ export default function HomeScreen({ navigation }: Props) {
           <Text style={styles.emptySubText}>右下のボタンから追加してね</Text>
         </View>
       ) : (
-        <FlatList
-          data={entries}
+        <SectionList
+          sections={sections}
           renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          stickySectionHeadersEnabled={false}
         />
       )}
       <TouchableOpacity
@@ -109,6 +125,22 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  sectionHeaderText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FF9966',
+    marginRight: 8,
+  },
+  sectionHeaderCount: {
+    fontSize: 12,
+    color: '#999',
   },
   card: {
     backgroundColor: '#FFFFFF',
