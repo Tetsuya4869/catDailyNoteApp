@@ -1,14 +1,25 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CatMood, moodEmojis, moodLabels, DiaryEntry } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
+import { exportDiaryData } from '../utils/export';
 import { colors, spacing, borderRadius } from '../constants/theme';
 
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
 
 export default function StatsScreen() {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -19,6 +30,23 @@ export default function StatsScreen() {
   async function loadEntries() {
     const data = await getDiaryEntries();
     setEntries(data);
+    setLoading(false);
+  }
+
+  async function handleExport() {
+    if (entries.length === 0) {
+      Alert.alert('エクスポートできません', '日記がありません');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      await exportDiaryData();
+    } catch {
+      Alert.alert('エラー', 'エクスポートに失敗しました');
+    } finally {
+      setExporting(false);
+    }
   }
 
   const moodCounts = moods.reduce(
@@ -35,6 +63,14 @@ export default function StatsScreen() {
     totalEntries > 0
       ? moods.reduce((a, b) => (moodCounts[a] >= moodCounts[b] ? a : b))
       : null;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -86,6 +122,18 @@ export default function StatsScreen() {
           </Text>
         </View>
       )}
+
+      <TouchableOpacity
+        style={[styles.exportButton, exporting && styles.exportButtonDisabled]}
+        onPress={handleExport}
+        disabled={exporting}
+      >
+        {exporting ? (
+          <ActivityIndicator size="small" color={colors.white} />
+        ) : (
+          <Text style={styles.exportButtonText}>📤 データをエクスポート</Text>
+        )}
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -93,6 +141,12 @@ export default function StatsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: colors.background,
   },
   content: {
@@ -195,5 +249,20 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: colors.textMuted,
+  },
+  exportButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    alignItems: 'center',
+    marginTop: spacing.xxl,
+  },
+  exportButtonDisabled: {
+    opacity: 0.6,
+  },
+  exportButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

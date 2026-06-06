@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Image,
   TextInput,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,6 +29,8 @@ export default function HomeScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -40,6 +44,13 @@ export default function HomeScreen() {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     setEntries(sorted);
+    setLoading(false);
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadEntries();
+    setRefreshing(false);
   }
 
   const filteredEntries = useMemo(() => {
@@ -101,8 +112,16 @@ export default function HomeScreen() {
     );
   }
 
-  const showEmpty = entries.length === 0;
+  const showEmpty = !loading && entries.length === 0;
   const showNoResults = entries.length > 0 && filteredEntries.length === 0;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -141,6 +160,14 @@ export default function HomeScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         />
       )}
 
@@ -157,6 +184,12 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: colors.background,
   },
   searchContainer: {
