@@ -1,15 +1,18 @@
 import React from 'react';
-import { Text, useColorScheme } from 'react-native';
+import { Text } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
+import CatsScreen from './src/screens/CatsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
+import CatEditScreen from './src/screens/CatEditScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { CatProvider } from './src/contexts/CatContext';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -49,6 +52,17 @@ function MainTabs() {
           tabBarLabel: 'カレンダー',
           tabBarIcon: ({ focused }) => (
             <Text style={{ fontSize: 24 }}>{focused ? '📅' : '🗓'}</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Cats"
+        component={CatsScreen}
+        options={{
+          title: 'うちの猫',
+          tabBarLabel: '猫',
+          tabBarIcon: ({ focused }) => (
+            <Text style={{ fontSize: 24 }}>{focused ? '🐱' : '😺'}</Text>
           ),
         }}
       />
@@ -116,6 +130,13 @@ function AppNavigator() {
             title: route.params?.id ? '日記を編集' : '新しい日記',
           })}
         />
+        <Stack.Screen
+          name="CatEdit"
+          component={CatEditScreen}
+          options={({ route }) => ({
+            title: route.params?.id ? '猫を編集' : '猫を追加',
+          })}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -124,7 +145,9 @@ function AppNavigator() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppNavigator />
+      <CatProvider>
+        <AppNavigator />
+      </CatProvider>
     </ThemeProvider>
   );
 }

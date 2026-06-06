@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { CatMood, DiaryEntry, moodEmojis, moodLabels } from '../types';
+import { CatMood, DiaryEntry, moodEmojis, moodLabels, catColorEmojis } from '../types';
 import {
   saveDiaryEntry,
   getDiaryEntryById,
@@ -26,6 +26,7 @@ import {
 } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCats } from '../contexts/CatContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Props = {
@@ -38,10 +39,12 @@ const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
 export default function DiaryEntryScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { cats, selectedCatId } = useCats();
   const editId = route.params?.id;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [mood, setMood] = useState<CatMood>('happy');
+  const [catId, setCatId] = useState<string | undefined>(selectedCatId || undefined);
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -59,6 +62,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       setTitle(entry.title);
       setContent(entry.content);
       setMood(entry.mood);
+      setCatId(entry.catId);
       setPhotoUri(entry.photoUri);
       setDate(new Date(entry.date));
     }
@@ -100,6 +104,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
 
     const entry: DiaryEntry = {
       id: editId || Date.now().toString(),
+      catId,
       date: date.toISOString(),
       title: title.trim(),
       content: content.trim(),
@@ -176,6 +181,42 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
             <Text style={styles.photoPlaceholderEmoji}>📷</Text>
             <Text style={styles.photoPlaceholderText}>写真を追加</Text>
           </TouchableOpacity>
+        )}
+
+        {cats.length > 0 && (
+          <>
+            <Text style={styles.label}>どの猫？</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.catScrollView}
+              contentContainerStyle={styles.catContainer}
+            >
+              <TouchableOpacity
+                style={[styles.catButton, !catId && styles.catButtonActive]}
+                onPress={() => setCatId(undefined)}
+              >
+                <Text style={styles.catEmoji}>🐱</Text>
+                <Text style={[styles.catLabel, !catId && styles.catLabelActive]}>
+                  指定なし
+                </Text>
+              </TouchableOpacity>
+              {cats.map((cat) => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.catButton, catId === cat.id && styles.catButtonActive]}
+                  onPress={() => setCatId(cat.id)}
+                >
+                  <Text style={styles.catEmoji}>{catColorEmojis[cat.color]}</Text>
+                  <Text
+                    style={[styles.catLabel, catId === cat.id && styles.catLabelActive]}
+                  >
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
         )}
 
         <Text style={styles.label}>今日の気分</Text>
@@ -313,6 +354,36 @@ const createStyles = (colors: ThemeColors) =>
       fontWeight: 'bold',
       color: colors.textSecondary,
       marginBottom: spacing.md,
+    },
+    catScrollView: {
+      marginBottom: spacing.xxl,
+      marginHorizontal: -spacing.xl,
+    },
+    catContainer: {
+      paddingHorizontal: spacing.xl,
+      gap: spacing.sm,
+    },
+    catButton: {
+      alignItems: 'center',
+      padding: spacing.sm,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.card,
+      minWidth: 70,
+    },
+    catButtonActive: {
+      backgroundColor: colors.primary,
+    },
+    catEmoji: {
+      fontSize: 24,
+      marginBottom: spacing.xs,
+    },
+    catLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    catLabelActive: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
     },
     moodContainer: {
       flexDirection: 'row',

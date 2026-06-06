@@ -18,6 +18,7 @@ import { DiaryEntry, moodEmojis } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCats } from '../contexts/CatContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Section = {
@@ -28,12 +29,15 @@ type Section = {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { cats, selectedCatId } = useCats();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const selectedCat = cats.find((c) => c.id === selectedCatId);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,14 +61,20 @@ export default function HomeScreen() {
   }
 
   const filteredEntries = useMemo(() => {
-    if (!searchQuery.trim()) return entries;
-    const q = searchQuery.toLowerCase();
-    return entries.filter(
-      (e) =>
-        e.title.toLowerCase().includes(q) ||
-        e.content.toLowerCase().includes(q)
-    );
-  }, [entries, searchQuery]);
+    let result = entries;
+    if (selectedCatId) {
+      result = result.filter((e) => e.catId === selectedCatId);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.title.toLowerCase().includes(q) ||
+          e.content.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [entries, searchQuery, selectedCatId]);
 
   const sections = useMemo<Section[]>(() => {
     const groups = new Map<string, DiaryEntry[]>();
@@ -140,6 +150,14 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {selectedCat && (
+        <View style={styles.filterBadge}>
+          <Text style={styles.filterBadgeText}>
+            🐱 {selectedCat.name}の日記を表示中
+          </Text>
+        </View>
+      )}
+
       {showEmpty && (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>🐱</Text>
@@ -206,6 +224,20 @@ const createStyles = (colors: ThemeColors) =>
       padding: spacing.md,
       fontSize: 16,
       color: colors.text,
+    },
+    filterBadge: {
+      backgroundColor: colors.primary,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+      alignSelf: 'flex-start',
+    },
+    filterBadgeText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: 'bold',
     },
     list: {
       padding: spacing.lg,
