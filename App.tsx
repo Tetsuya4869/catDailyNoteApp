@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from './src/screens/HomeScreen';
+import CalendarScreen from './src/screens/CalendarScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
@@ -34,6 +35,17 @@ function MainTabs() {
           tabBarLabel: '日記',
           tabBarIcon: ({ focused }) => (
             <Text style={{ fontSize: 24 }}>{focused ? '📖' : '📕'}</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{
+          title: 'カレンダー',
+          tabBarLabel: 'カレンダー',
+          tabBarIcon: ({ focused }) => (
+            <Text style={{ fontSize: 24 }}>{focused ? '📅' : '🗓'}</Text>
           ),
         }}
       />

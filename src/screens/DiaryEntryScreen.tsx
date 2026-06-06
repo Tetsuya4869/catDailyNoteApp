@@ -14,6 +14,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -89,6 +90,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
 
   async function handleSave() {
     if (!title.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('エラー', 'タイトルを入力してください');
       return;
     }
@@ -105,11 +107,13 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     };
 
     await saveDiaryEntry(entry);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     navigation.goBack();
   }
 
   function handleDelete() {
     if (!editId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('削除確認', 'この日記を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
       {
@@ -117,6 +121,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         style: 'destructive',
         onPress: async () => {
           await deleteDiaryEntry(editId);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           navigation.goBack();
         },
       },
