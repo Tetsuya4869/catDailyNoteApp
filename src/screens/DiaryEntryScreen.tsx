@@ -24,6 +24,7 @@ import {
   deleteDiaryEntry,
 } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
+import { colors, spacing, borderRadius } from '../constants/theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DiaryEntry'>;
@@ -70,6 +71,13 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     if (!result.canceled && result.assets[0]) {
       setPhotoUri(result.assets[0].uri);
     }
+  }
+
+  function removePhoto() {
+    Alert.alert('写真を削除', '写真を削除しますか？', [
+      { text: 'キャンセル', style: 'cancel' },
+      { text: '削除', style: 'destructive', onPress: () => setPhotoUri(undefined) },
+    ]);
   }
 
   function handleDateChange(_event: unknown, selectedDate?: Date) {
@@ -141,16 +149,26 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
           />
         )}
 
-        <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-          {photoUri ? (
+        {photoUri ? (
+          <View style={styles.photoContainer}>
             <Image source={{ uri: photoUri }} style={styles.photo} />
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <Text style={styles.photoPlaceholderEmoji}>📷</Text>
-              <Text style={styles.photoPlaceholderText}>写真を追加</Text>
+            <View style={styles.photoActions}>
+              <TouchableOpacity style={styles.photoActionBtn} onPress={pickImage}>
+                <Text style={styles.photoActionText}>📷 変更</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.photoActionBtn} onPress={removePhoto}>
+                <Text style={[styles.photoActionText, styles.photoRemoveText]}>
+                  ✕ 削除
+                </Text>
+              </TouchableOpacity>
             </View>
-          )}
-        </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.photoPlaceholder} onPress={pickImage}>
+            <Text style={styles.photoPlaceholderEmoji}>📷</Text>
+            <Text style={styles.photoPlaceholderText}>写真を追加</Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.label}>今日の気分</Text>
         <View style={styles.moodContainer}>
@@ -176,7 +194,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
           value={title}
           onChangeText={setTitle}
           placeholder="今日のできごと"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textPlaceholder}
         />
 
         <Text style={styles.label}>日記</Text>
@@ -185,7 +203,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
           value={content}
           onChangeText={setContent}
           placeholder="今日はどんな一日だった？"
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textPlaceholder}
           multiline
           textAlignVertical="top"
         />
@@ -207,131 +225,151 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF5E6',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: 20,
+    padding: spacing.xl,
   },
   dateButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
   },
   dateButtonLabel: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
   },
   dateButtonValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: colors.text,
   },
-  photoButton: {
-    marginBottom: 24,
-    borderRadius: 16,
+  photoContainer: {
+    marginBottom: spacing.xxl,
+    borderRadius: borderRadius.lg,
     overflow: 'hidden',
+    backgroundColor: colors.white,
   },
   photo: {
     width: '100%',
     height: 200,
   },
+  photoActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.lg,
+    padding: spacing.sm,
+  },
+  photoActionBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  photoActionText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: 'bold',
+  },
+  photoRemoveText: {
+    color: colors.danger,
+  },
   photoPlaceholder: {
     width: '100%',
     height: 200,
-    backgroundColor: '#E8E0D5',
+    backgroundColor: colors.backgroundMuted,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: borderRadius.lg,
     borderWidth: 2,
-    borderColor: '#D0C4B8',
+    borderColor: colors.border,
     borderStyle: 'dashed',
+    marginBottom: spacing.xxl,
   },
   photoPlaceholderEmoji: {
     fontSize: 40,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   photoPlaceholderText: {
     fontSize: 14,
-    color: '#888',
+    color: colors.textMuted,
   },
   label: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#555',
-    marginBottom: 12,
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
   },
   moodContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   moodButton: {
     alignItems: 'center',
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#FFF',
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.white,
     minWidth: 60,
   },
   moodButtonActive: {
-    backgroundColor: '#FF9966',
+    backgroundColor: colors.primary,
   },
   moodEmoji: {
     fontSize: 28,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   moodLabel: {
     fontSize: 10,
-    color: '#666',
+    color: colors.textSecondary,
   },
   moodLabelActive: {
-    color: '#FFF',
+    color: colors.white,
     fontWeight: 'bold',
   },
   titleInput: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
     fontSize: 16,
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   contentInput: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
     fontSize: 16,
     minHeight: 150,
-    marginBottom: 24,
+    marginBottom: spacing.xxl,
   },
   deleteButton: {
-    backgroundColor: '#FFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#E55',
+    borderColor: colors.danger,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   deleteButtonText: {
-    color: '#E55',
+    color: colors.danger,
     fontSize: 14,
     fontWeight: 'bold',
   },
   saveButton: {
-    backgroundColor: '#FF9966',
-    margin: 20,
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.primary,
+    margin: spacing.xl,
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#FFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: 'bold',
   },

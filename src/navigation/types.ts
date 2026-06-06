@@ -1,4 +1,9 @@
 export type RootStackParamList = {
-  Home: undefined;
+  MainTabs: undefined;
   DiaryEntry: { id?: string };
+};
+
+export type TabParamList = {
+  Home: undefined;
+  Stats: undefined;
 };

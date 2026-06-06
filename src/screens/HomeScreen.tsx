@@ -6,26 +6,27 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  TextInput,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { DiaryEntry, moodEmojis } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
-
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
-};
+import { colors, spacing, borderRadius } from '../constants/theme';
 
 type Section = {
   title: string;
   data: DiaryEntry[];
 };
 
-export default function HomeScreen({ navigation }: Props) {
+export default function HomeScreen() {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -41,16 +42,26 @@ export default function HomeScreen({ navigation }: Props) {
     setEntries(sorted);
   }
 
+  const filteredEntries = useMemo(() => {
+    if (!searchQuery.trim()) return entries;
+    const q = searchQuery.toLowerCase();
+    return entries.filter(
+      (e) =>
+        e.title.toLowerCase().includes(q) ||
+        e.content.toLowerCase().includes(q)
+    );
+  }, [entries, searchQuery]);
+
   const sections = useMemo<Section[]>(() => {
     const groups = new Map<string, DiaryEntry[]>();
-    entries.forEach((entry) => {
+    filteredEntries.forEach((entry) => {
       const key = format(new Date(entry.date), 'yyyy年M月', { locale: ja });
       const arr = groups.get(key) || [];
       arr.push(entry);
       groups.set(key, arr);
     });
     return Array.from(groups, ([title, data]) => ({ title, data }));
-  }, [entries]);
+  }, [filteredEntries]);
 
   function renderItem({ item }: { item: DiaryEntry }) {
     return (
@@ -90,15 +101,39 @@ export default function HomeScreen({ navigation }: Props) {
     );
   }
 
+  const showEmpty = entries.length === 0;
+  const showNoResults = entries.length > 0 && filteredEntries.length === 0;
+
   return (
     <View style={styles.container}>
-      {entries.length === 0 ? (
+      {entries.length > 0 && (
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="🔍 日記を検索..."
+            placeholderTextColor={colors.textPlaceholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+      )}
+
+      {showEmpty && (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>🐱</Text>
           <Text style={styles.emptyText}>まだ日記がありません</Text>
           <Text style={styles.emptySubText}>右下のボタンから追加してね</Text>
         </View>
-      ) : (
+      )}
+
+      {showNoResults && (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyEmoji}>🔍</Text>
+          <Text style={styles.emptyText}>見つかりませんでした</Text>
+        </View>
+      )}
+
+      {!showEmpty && !showNoResults && (
         <SectionList
           sections={sections}
           renderItem={renderItem}
@@ -108,6 +143,7 @@ export default function HomeScreen({ navigation }: Props) {
           stickySectionHeadersEnabled={false}
         />
       )}
+
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('DiaryEntry', {})}
@@ -121,33 +157,43 @@ export default function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF5E6',
+    backgroundColor: colors.background,
+  },
+  searchContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  searchInput: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    fontSize: 16,
   },
   list: {
-    padding: 16,
+    padding: spacing.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    paddingVertical: 8,
-    marginTop: 4,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
   },
   sectionHeaderText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FF9966',
-    marginRight: 8,
+    color: colors.primary,
+    marginRight: spacing.sm,
   },
   sectionHeaderCount: {
     fontSize: 12,
-    color: '#999',
+    color: colors.textPlaceholder,
   },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 12,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -158,17 +204,17 @@ const styles = StyleSheet.create({
     height: 150,
   },
   cardContent: {
-    padding: 16,
+    padding: spacing.lg,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   date: {
     fontSize: 14,
-    color: '#888',
+    color: colors.textMuted,
   },
   mood: {
     fontSize: 24,
@@ -176,12 +222,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    color: colors.text,
+    marginBottom: spacing.xs,
   },
   preview: {
     fontSize: 14,
-    color: '#666',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   emptyContainer: {
@@ -191,28 +237,28 @@ const styles = StyleSheet.create({
   },
   emptyEmoji: {
     fontSize: 64,
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   emptyText: {
     fontSize: 18,
-    color: '#666',
-    marginBottom: 8,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   emptySubText: {
     fontSize: 14,
-    color: '#999',
+    color: colors.textPlaceholder,
   },
   fab: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
+    right: spacing.xl,
+    bottom: spacing.xl,
     width: 60,
     height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FF9966',
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -220,7 +266,7 @@ const styles = StyleSheet.create({
   },
   fabText: {
     fontSize: 32,
-    color: '#FFF',
+    color: colors.white,
     lineHeight: 36,
   },
 });
