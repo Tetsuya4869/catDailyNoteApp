@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,8 @@ import {
   deleteDiaryEntry,
 } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, borderRadius } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DiaryEntry'>;
@@ -35,6 +36,8 @@ type Props = {
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
 
 export default function DiaryEntryScreen({ navigation, route }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const editId = route.params?.id;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -227,155 +230,158 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: spacing.xl,
-  },
-  dateButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  dateButtonLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  dateButtonValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  photoContainer: {
-    marginBottom: spacing.xxl,
-    borderRadius: borderRadius.lg,
-    overflow: 'hidden',
-    backgroundColor: colors.white,
-  },
-  photo: {
-    width: '100%',
-    height: 200,
-  },
-  photoActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.lg,
-    padding: spacing.sm,
-  },
-  photoActionBtn: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-  },
-  photoActionText: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: 'bold',
-  },
-  photoRemoveText: {
-    color: colors.danger,
-  },
-  photoPlaceholder: {
-    width: '100%',
-    height: 200,
-    backgroundColor: colors.backgroundMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: borderRadius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    marginBottom: spacing.xxl,
-  },
-  photoPlaceholderEmoji: {
-    fontSize: 40,
-    marginBottom: spacing.sm,
-  },
-  photoPlaceholderText: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  moodContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xxl,
-  },
-  moodButton: {
-    alignItems: 'center',
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.white,
-    minWidth: 60,
-  },
-  moodButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  moodEmoji: {
-    fontSize: 28,
-    marginBottom: spacing.xs,
-  },
-  moodLabel: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  moodLabelActive: {
-    color: colors.white,
-    fontWeight: 'bold',
-  },
-  titleInput: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    fontSize: 16,
-    marginBottom: spacing.xxl,
-  },
-  contentInput: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    fontSize: 16,
-    minHeight: 150,
-    marginBottom: spacing.xxl,
-  },
-  deleteButton: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.danger,
-    padding: 14,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-  },
-  deleteButtonText: {
-    color: colors.danger,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
-    margin: spacing.xl,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: colors.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    content: {
+      padding: spacing.xl,
+    },
+    dateButton: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      marginBottom: spacing.xl,
+    },
+    dateButtonLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    dateButtonValue: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.text,
+    },
+    photoContainer: {
+      marginBottom: spacing.xxl,
+      borderRadius: borderRadius.lg,
+      overflow: 'hidden',
+      backgroundColor: colors.card,
+    },
+    photo: {
+      width: '100%',
+      height: 200,
+    },
+    photoActions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: spacing.lg,
+      padding: spacing.sm,
+    },
+    photoActionBtn: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+    },
+    photoActionText: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    photoRemoveText: {
+      color: colors.danger,
+    },
+    photoPlaceholder: {
+      width: '100%',
+      height: 200,
+      backgroundColor: colors.backgroundMuted,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: borderRadius.lg,
+      borderWidth: 2,
+      borderColor: colors.border,
+      borderStyle: 'dashed',
+      marginBottom: spacing.xxl,
+    },
+    photoPlaceholderEmoji: {
+      fontSize: 40,
+      marginBottom: spacing.sm,
+    },
+    photoPlaceholderText: {
+      fontSize: 14,
+      color: colors.textMuted,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+    },
+    moodContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: spacing.xxl,
+    },
+    moodButton: {
+      alignItems: 'center',
+      padding: spacing.sm,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.card,
+      minWidth: 60,
+    },
+    moodButtonActive: {
+      backgroundColor: colors.primary,
+    },
+    moodEmoji: {
+      fontSize: 28,
+      marginBottom: spacing.xs,
+    },
+    moodLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    moodLabelActive: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+    },
+    titleInput: {
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: spacing.xxl,
+    },
+    contentInput: {
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      fontSize: 16,
+      color: colors.text,
+      minHeight: 150,
+      marginBottom: spacing.xxl,
+    },
+    deleteButton: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      padding: 14,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    deleteButtonText: {
+      color: colors.danger,
+      fontSize: 14,
+      fontWeight: 'bold',
+    },
+    saveButton: {
+      backgroundColor: colors.primary,
+      margin: spacing.xl,
+      padding: spacing.lg,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+    },
+    saveButtonText: {
+      color: '#FFFFFF',
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+  });

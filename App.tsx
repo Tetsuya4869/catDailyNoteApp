@@ -1,20 +1,22 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
-import { colors } from './src/constants/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 function MainTabs() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -22,7 +24,7 @@ function MainTabs() {
         headerTintColor: colors.primary,
         headerTitleStyle: { fontWeight: 'bold' },
         headerShadowVisible: false,
-        tabBarStyle: { backgroundColor: colors.white },
+        tabBarStyle: { backgroundColor: colors.tabBar, borderTopColor: colors.border },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
       }}
@@ -64,10 +66,24 @@ function MainTabs() {
   );
 }
 
-export default function App() {
+function AppNavigator() {
+  const { colors, isDark } = useTheme();
+
+  const navigationTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      background: colors.background,
+      card: colors.card,
+      text: colors.text,
+      primary: colors.primary,
+      border: colors.border,
+    },
+  };
+
   return (
-    <NavigationContainer>
-      <StatusBar style="dark" />
+    <NavigationContainer theme={navigationTheme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
@@ -90,5 +106,13 @@ export default function App() {
         />
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppNavigator />
+    </ThemeProvider>
   );
 }

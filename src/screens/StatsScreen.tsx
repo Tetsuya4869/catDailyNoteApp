@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,19 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { CatMood, moodEmojis, moodLabels, DiaryEntry } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
-import { exportDiaryData } from '../utils/export';
-import { colors, spacing, borderRadius } from '../constants/theme';
+import { exportDiaryData, importDiaryData } from '../utils/export';
+import { useTheme } from '../contexts/ThemeContext';
+import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
 
 export default function StatsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -46,6 +50,26 @@ export default function StatsScreen() {
       Alert.alert('エラー', 'エクスポートに失敗しました');
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleImport() {
+    setImporting(true);
+    try {
+      const result = await importDiaryData();
+      if (result.success) {
+        Alert.alert(
+          'インポート完了',
+          `${result.imported}件の日記をインポートしました${result.skipped > 0 ? `\n（${result.skipped}件はスキップ）` : ''}`
+        );
+        loadEntries();
+      } else if (result.error) {
+        Alert.alert('エラー', result.error);
+      }
+    } catch {
+      Alert.alert('エラー', 'インポートに失敗しました');
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -123,146 +147,169 @@ export default function StatsScreen() {
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.exportButton, exporting && styles.exportButtonDisabled]}
-        onPress={handleExport}
-        disabled={exporting}
-      >
-        {exporting ? (
-          <ActivityIndicator size="small" color={colors.white} />
-        ) : (
-          <Text style={styles.exportButtonText}>📤 データをエクスポート</Text>
-        )}
-      </TouchableOpacity>
+      <View style={styles.buttonRow}>
+        <TouchableOpacity
+          style={[styles.actionButton, exporting && styles.actionButtonDisabled]}
+          onPress={handleExport}
+          disabled={exporting}
+        >
+          {exporting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.actionButtonText}>📤 エクスポート</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.importButton, importing && styles.actionButtonDisabled]}
+          onPress={handleImport}
+          disabled={importing}
+        >
+          {importing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.actionButtonText}>📥 インポート</Text>
+          )}
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: spacing.xl,
-  },
-  summaryCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-  },
-  summaryEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
-  },
-  summaryTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: spacing.lg,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: spacing.lg,
-  },
-  summaryItem: {
-    alignItems: 'center',
-  },
-  summaryValue: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  mostCommon: {
-    alignItems: 'center',
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.backgroundMuted,
-    width: '100%',
-  },
-  mostCommonLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  mostCommonEmoji: {
-    fontSize: 40,
-  },
-  mostCommonText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: spacing.lg,
-  },
-  moodRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  moodEmoji: {
-    fontSize: 24,
-    width: 40,
-  },
-  moodBarContainer: {
-    flex: 1,
-    height: 20,
-    backgroundColor: colors.backgroundMuted,
-    borderRadius: 10,
-    marginHorizontal: spacing.sm,
-    overflow: 'hidden',
-  },
-  moodBar: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-  },
-  moodCount: {
-    width: 30,
-    textAlign: 'right',
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    marginTop: spacing.xxl,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  exportButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    padding: spacing.lg,
-    alignItems: 'center',
-    marginTop: spacing.xxl,
-  },
-  exportButtonDisabled: {
-    opacity: 0.6,
-  },
-  exportButtonText: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: spacing.xl,
+    },
+    summaryCard: {
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.xl,
+      alignItems: 'center',
+      marginBottom: spacing.xxl,
+    },
+    summaryEmoji: {
+      fontSize: 48,
+      marginBottom: spacing.sm,
+    },
+    summaryTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: spacing.lg,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      width: '100%',
+      marginBottom: spacing.lg,
+    },
+    summaryItem: {
+      alignItems: 'center',
+    },
+    summaryValue: {
+      fontSize: 36,
+      fontWeight: 'bold',
+      color: colors.primary,
+    },
+    summaryLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    mostCommon: {
+      alignItems: 'center',
+      paddingTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.backgroundMuted,
+      width: '100%',
+    },
+    mostCommonLabel: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginBottom: spacing.xs,
+    },
+    mostCommonEmoji: {
+      fontSize: 40,
+    },
+    mostCommonText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: spacing.lg,
+    },
+    moodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: spacing.md,
+    },
+    moodEmoji: {
+      fontSize: 24,
+      width: 40,
+    },
+    moodBarContainer: {
+      flex: 1,
+      height: 20,
+      backgroundColor: colors.backgroundMuted,
+      borderRadius: 10,
+      marginHorizontal: spacing.sm,
+      overflow: 'hidden',
+    },
+    moodBar: {
+      height: '100%',
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+    },
+    moodCount: {
+      width: 30,
+      textAlign: 'right',
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      marginTop: spacing.xxl,
+    },
+    emptyText: {
+      fontSize: 14,
+      color: colors.textMuted,
+    },
+    buttonRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.xxl,
+    },
+    actionButton: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      padding: spacing.lg,
+      alignItems: 'center',
+    },
+    importButton: {
+      backgroundColor: colors.textSecondary,
+    },
+    actionButtonDisabled: {
+      opacity: 0.6,
+    },
+    actionButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: 'bold',
+    },
+  });

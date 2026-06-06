@@ -23,11 +23,14 @@ import { ja } from 'date-fns/locale';
 import { DiaryEntry, moodEmojis } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, borderRadius } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
 export default function CalendarScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -113,8 +116,8 @@ export default function CalendarScreen() {
             <Text
               style={[
                 styles.weekdayText,
-                i === 0 && styles.sundayText,
-                i === 6 && styles.saturdayText,
+                i === 0 && { color: colors.sunday },
+                i === 6 && { color: colors.saturday },
               ]}
             >
               {day}
@@ -144,8 +147,8 @@ export default function CalendarScreen() {
               <Text
                 style={[
                   styles.dayText,
-                  dayOfWeek === 0 && styles.sundayText,
-                  dayOfWeek === 6 && styles.saturdayText,
+                  dayOfWeek === 0 && { color: colors.sunday },
+                  dayOfWeek === 6 && { color: colors.saturday },
                   isToday && styles.todayText,
                 ]}
               >
@@ -170,89 +173,84 @@ export default function CalendarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  navButton: {
-    padding: spacing.sm,
-  },
-  navButtonText: {
-    fontSize: 18,
-    color: colors.primary,
-  },
-  monthTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  weekdayRow: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.sm,
-  },
-  weekdayCell: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  weekdayText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: colors.textSecondary,
-  },
-  calendarGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: spacing.sm,
-  },
-  dayCell: {
-    width: '14.28%',
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xs,
-  },
-  todayCell: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-  },
-  dayText: {
-    fontSize: 14,
-    color: colors.text,
-  },
-  todayText: {
-    color: colors.white,
-    fontWeight: 'bold',
-  },
-  sundayText: {
-    color: '#E55555',
-  },
-  saturdayText: {
-    color: '#5577EE',
-  },
-  moodIndicator: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  legend: {
-    padding: spacing.xl,
-    alignItems: 'center',
-  },
-  legendText: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: spacing.lg,
+    },
+    navButton: {
+      padding: spacing.sm,
+    },
+    navButtonText: {
+      fontSize: 18,
+      color: colors.primary,
+    },
+    monthTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+    },
+    weekdayRow: {
+      flexDirection: 'row',
+      paddingHorizontal: spacing.sm,
+    },
+    weekdayCell: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: spacing.sm,
+    },
+    weekdayText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+    },
+    calendarGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      paddingHorizontal: spacing.sm,
+    },
+    dayCell: {
+      width: '14.28%',
+      aspectRatio: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xs,
+    },
+    todayCell: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+    },
+    dayText: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    todayText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+    },
+    moodIndicator: {
+      fontSize: 12,
+      marginTop: 2,
+    },
+    legend: {
+      padding: spacing.xl,
+      alignItems: 'center',
+    },
+    legendText: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
+  });

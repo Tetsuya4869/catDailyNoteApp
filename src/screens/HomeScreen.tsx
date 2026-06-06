@@ -17,7 +17,8 @@ import { ja } from 'date-fns/locale';
 import { DiaryEntry, moodEmojis } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
-import { colors, spacing, borderRadius } from '../constants/theme';
+import { useTheme } from '../contexts/ThemeContext';
+import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Section = {
   title: string;
@@ -25,6 +26,8 @@ type Section = {
 };
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -181,125 +184,127 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  searchContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  searchInput: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: 16,
-  },
-  list: {
-    padding: spacing.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    paddingVertical: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  sectionHeaderText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.primary,
-    marginRight: spacing.sm,
-  },
-  sectionHeaderCount: {
-    fontSize: 12,
-    color: colors.textPlaceholder,
-  },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.md,
-    overflow: 'hidden',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  photo: {
-    width: '100%',
-    height: 150,
-  },
-  cardContent: {
-    padding: spacing.lg,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  date: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  mood: {
-    fontSize: 24,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  preview: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyEmoji: {
-    fontSize: 64,
-    marginBottom: spacing.lg,
-  },
-  emptyText: {
-    fontSize: 18,
-    color: colors.textSecondary,
-    marginBottom: spacing.sm,
-  },
-  emptySubText: {
-    fontSize: 14,
-    color: colors.textPlaceholder,
-  },
-  fab: {
-    position: 'absolute',
-    right: spacing.xl,
-    bottom: spacing.xl,
-    width: 60,
-    height: 60,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  fabText: {
-    fontSize: 32,
-    color: colors.white,
-    lineHeight: 36,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+    },
+    searchContainer: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+    },
+    searchInput: {
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.md,
+      padding: spacing.md,
+      fontSize: 16,
+      color: colors.text,
+    },
+    list: {
+      padding: spacing.lg,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      paddingVertical: spacing.sm,
+      marginTop: spacing.xs,
+    },
+    sectionHeaderText: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: colors.primary,
+      marginRight: spacing.sm,
+    },
+    sectionHeaderCount: {
+      fontSize: 12,
+      color: colors.textPlaceholder,
+    },
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.lg,
+      marginBottom: spacing.md,
+      overflow: 'hidden',
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    photo: {
+      width: '100%',
+      height: 150,
+    },
+    cardContent: {
+      padding: spacing.lg,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.sm,
+    },
+    date: {
+      fontSize: 14,
+      color: colors.textMuted,
+    },
+    mood: {
+      fontSize: 24,
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: spacing.xs,
+    },
+    preview: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      lineHeight: 20,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    emptyEmoji: {
+      fontSize: 64,
+      marginBottom: spacing.lg,
+    },
+    emptyText: {
+      fontSize: 18,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    emptySubText: {
+      fontSize: 14,
+      color: colors.textPlaceholder,
+    },
+    fab: {
+      position: 'absolute',
+      right: spacing.xl,
+      bottom: spacing.xl,
+      width: 60,
+      height: 60,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 5,
+    },
+    fabText: {
+      fontSize: 32,
+      color: '#FFFFFF',
+      lineHeight: 36,
+    },
+  });
