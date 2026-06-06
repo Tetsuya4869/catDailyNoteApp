@@ -32,7 +32,7 @@ export const darkColors = {
   saturday: '#7799FF',
 } as const;
 
-export type ThemeColors = typeof lightColors;
+export type ThemeColors = Record<keyof typeof lightColors, string>;
 
 export const spacing = {
   xs: 4,

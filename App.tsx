@@ -7,6 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import StatsScreen from './src/screens/StatsScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
@@ -59,6 +60,17 @@ function MainTabs() {
           tabBarLabel: '統計',
           tabBarIcon: ({ focused }) => (
             <Text style={{ fontSize: 24 }}>{focused ? '📊' : '📈'}</Text>
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          title: '設定',
+          tabBarLabel: '設定',
+          tabBarIcon: ({ focused }) => (
+            <Text style={{ fontSize: 24 }}>{focused ? '⚙️' : '🔧'}</Text>
           ),
         }}
       />
