@@ -1,13 +1,25 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Switch,
+  Platform,
+  Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
 import { useTheme } from '../contexts/ThemeContext';
-import { ThemePreference } from '../storage/settingsStorage';
+import {
+  ThemePreference,
+  ReminderSettings,
+  getReminderSettings,
+  saveReminderSettings,
+} from '../storage/settingsStorage';
+import { scheduleReminder } from '../utils/notifications';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const themeOptions: { value: ThemePreference; label: string; emoji: string }[] = [
@@ -16,9 +28,54 @@ const themeOptions: { value: ThemePreference; label: string; emoji: string }[] =
   { value: 'dark', label: 'ダークモード', emoji: '🌙' },
 ];
 
+function reminderTimeToDate(settings: ReminderSettings): Date {
+  const date = new Date();
+  date.setHours(settings.hour, settings.minute, 0, 0);
+  return date;
+}
+
 export default function SettingsScreen() {
   const { colors, preference, setPreference } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [reminder, setReminder] = useState<ReminderSettings | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      getReminderSettings().then(setReminder);
+    }, [])
+  );
+
+  async function applyReminder(next: ReminderSettings) {
+    setReminder(next);
+    await saveReminderSettings(next);
+    const ok = await scheduleReminder(next);
+    if (!ok && next.enabled) {
+      Alert.alert(
+        '通知が許可されていません',
+        '端末の設定からこのアプリの通知を許可してください'
+      );
+      const reverted = { ...next, enabled: false };
+      setReminder(reverted);
+      await saveReminderSettings(reverted);
+    }
+  }
+
+  function handleToggle(value: boolean) {
+    if (!reminder) return;
+    applyReminder({ ...reminder, enabled: value });
+  }
+
+  function handleTimeChange(_event: unknown, selectedDate?: Date) {
+    setShowTimePicker(Platform.OS === 'ios');
+    if (selectedDate && reminder) {
+      applyReminder({
+        ...reminder,
+        hour: selectedDate.getHours(),
+        minute: selectedDate.getMinutes(),
+      });
+    }
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -42,6 +99,41 @@ export default function SettingsScreen() {
           );
         })}
       </View>
+
+      <Text style={styles.sectionTitle}>リマインダー</Text>
+      <View style={styles.card}>
+        <View style={[styles.option, reminder?.enabled && styles.optionBorder]}>
+          <Text style={styles.optionEmoji}>🔔</Text>
+          <Text style={styles.optionLabel}>毎日のリマインダー</Text>
+          <Switch
+            value={reminder?.enabled ?? false}
+            onValueChange={handleToggle}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+        {reminder?.enabled && (
+          <TouchableOpacity
+            style={styles.option}
+            onPress={() => setShowTimePicker(true)}
+          >
+            <Text style={styles.optionEmoji}>⏰</Text>
+            <Text style={styles.optionLabel}>通知時刻</Text>
+            <Text style={styles.optionValue}>
+              {format(reminderTimeToDate(reminder), 'HH:mm')}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {showTimePicker && reminder && (
+        <DateTimePicker
+          value={reminderTimeToDate(reminder)}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleTimeChange}
+        />
+      )}
 
       <Text style={styles.sectionTitle}>このアプリについて</Text>
       <View style={styles.card}>
@@ -103,6 +195,11 @@ const createStyles = (colors: ThemeColors) =>
       flex: 1,
       fontSize: 16,
       color: colors.text,
+    },
+    optionValue: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.primary,
     },
     checkmark: {
       fontSize: 18,
