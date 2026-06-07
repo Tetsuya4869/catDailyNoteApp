@@ -32,3 +32,27 @@ export async function getDiaryEntryById(id: string): Promise<DiaryEntry | null> 
   const entries = await getDiaryEntries();
   return entries.find((e) => e.id === id) || null;
 }
+
+export function calculateStreak(entries: DiaryEntry[]): number {
+  if (entries.length === 0) return 0;
+
+  const dates = new Set(
+    entries.map((e) => e.date.slice(0, 10))
+  );
+
+  const today = new Date();
+  let streak = 0;
+  const cursor = new Date(today);
+
+  // Allow today to not yet have an entry (check yesterday first if today missing)
+  if (!dates.has(cursor.toISOString().slice(0, 10))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  while (dates.has(cursor.toISOString().slice(0, 10))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return streak;
+}

@@ -4,6 +4,7 @@ import {
   saveDiaryEntry,
   deleteDiaryEntry,
   getDiaryEntryById,
+  calculateStreak,
 } from '../diaryStorage';
 import { DiaryEntry } from '../../types';
 
@@ -92,5 +93,57 @@ describe('diaryStorage', () => {
   it('returns null when an entry id is not found', async () => {
     const found = await getDiaryEntryById('missing');
     expect(found).toBeNull();
+  });
+});
+
+describe('calculateStreak', () => {
+  function daysAgo(n: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString();
+  }
+
+  it('returns 0 for empty entries', () => {
+    expect(calculateStreak([])).toBe(0);
+  });
+
+  it('returns 1 for only today', () => {
+    const e = makeEntry({ id: 'a', date: daysAgo(0) });
+    expect(calculateStreak([e])).toBe(1);
+  });
+
+  it('counts consecutive days including today', () => {
+    const entries = [
+      makeEntry({ id: 'a', date: daysAgo(0) }),
+      makeEntry({ id: 'b', date: daysAgo(1) }),
+      makeEntry({ id: 'c', date: daysAgo(2) }),
+    ];
+    expect(calculateStreak(entries)).toBe(3);
+  });
+
+  it('stops at a gap', () => {
+    const entries = [
+      makeEntry({ id: 'a', date: daysAgo(0) }),
+      makeEntry({ id: 'b', date: daysAgo(1) }),
+      makeEntry({ id: 'c', date: daysAgo(3) }), // gap at day 2
+    ];
+    expect(calculateStreak(entries)).toBe(2);
+  });
+
+  it('counts from yesterday when today has no entry', () => {
+    const entries = [
+      makeEntry({ id: 'a', date: daysAgo(1) }),
+      makeEntry({ id: 'b', date: daysAgo(2) }),
+    ];
+    expect(calculateStreak(entries)).toBe(2);
+  });
+
+  it('deduplicates multiple entries on the same day', () => {
+    const entries = [
+      makeEntry({ id: 'a', date: daysAgo(0) }),
+      makeEntry({ id: 'b', date: daysAgo(0) }),
+      makeEntry({ id: 'c', date: daysAgo(1) }),
+    ];
+    expect(calculateStreak(entries)).toBe(2);
   });
 });

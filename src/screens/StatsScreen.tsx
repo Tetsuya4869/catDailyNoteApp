@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CatMood, moodEmojis, moodLabels, DiaryEntry } from '../types';
-import { getDiaryEntries } from '../storage/diaryStorage';
+import { getDiaryEntries, calculateStreak } from '../storage/diaryStorage';
 import { exportDiaryData, importDiaryData } from '../utils/export';
 import { useTheme } from '../contexts/ThemeContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
@@ -82,6 +82,7 @@ export default function StatsScreen() {
   );
 
   const totalEntries = entries.length;
+  const streakDays = calculateStreak(entries);
   const entriesWithPhotos = entries.filter((e) => e.photoUri).length;
   const mostCommonMood =
     totalEntries > 0
@@ -101,6 +102,11 @@ export default function StatsScreen() {
       <View style={styles.summaryCard}>
         <Text style={styles.summaryEmoji}>📊</Text>
         <Text style={styles.summaryTitle}>日記の統計</Text>
+        <View style={styles.streakBadge}>
+          <Text style={styles.streakFire}>🔥</Text>
+          <Text style={styles.streakNumber}>{streakDays}</Text>
+          <Text style={styles.streakLabel}>日連続</Text>
+        </View>
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>{totalEntries}</Text>
@@ -201,6 +207,29 @@ const createStyles = (colors: ThemeColors) =>
     summaryEmoji: {
       fontSize: 48,
       marginBottom: spacing.sm,
+    },
+    streakBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.full,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.sm,
+      marginBottom: spacing.lg,
+      gap: spacing.xs,
+    },
+    streakFire: {
+      fontSize: 24,
+    },
+    streakNumber: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+    },
+    streakLabel: {
+      fontSize: 14,
+      color: '#FFFFFF',
+      fontWeight: '600',
     },
     summaryTitle: {
       fontSize: 20,
