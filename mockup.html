@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>猫の日記 - プレビュー</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #FFF5E6;
+      min-height: 100vh;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .screen { display: none; padding-bottom: 80px; }
+    .screen.active { display: block; }
+
+    /* Header */
+    .header {
+      background: #FFF5E6;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header h1 { font-size: 24px; color: #333; }
+    .header-btn { font-size: 24px; background: none; border: none; cursor: pointer; }
+
+    /* Content */
+    .content { padding: 0 16px 16px; }
+
+    /* Card */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    /* Diary Entry */
+    .diary-entry { padding: 16px; }
+    .diary-date { font-size: 12px; color: #999; margin-bottom: 4px; }
+    .diary-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .diary-mood { font-size: 24px; }
+    .diary-cat { font-size: 16px; font-weight: 600; color: #333; }
+    .diary-text { font-size: 14px; color: #666; line-height: 1.5; margin-bottom: 8px; }
+    .diary-photo {
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, #FFE4D6 0%, #FFD4C4 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      margin-bottom: 8px;
+    }
+    .diary-footer { display: flex; justify-content: space-between; align-items: center; }
+    .diary-weight { font-size: 12px; color: #FF9966; font-weight: 600; }
+
+    /* FAB */
+    .fab {
+      position: fixed;
+      bottom: 100px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      background: #FF9966;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(255,153,102,0.4);
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Filter */
+    .filter {
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .filter select {
+      flex: 1;
+      border: none;
+      font-size: 16px;
+      color: #333;
+      background: transparent;
+    }
+
+    /* Tab Bar */
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 0 24px;
+      border-top: 1px solid #eee;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px 16px;
+    }
+    .tab-icon { font-size: 24px; }
+    .tab-label { font-size: 10px; color: #999; }
+    .tab.active .tab-label { color: #FF9966; }
+
+    /* Calendar */
+    .calendar-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      padding: 16px;
+    }
+    .calendar-header button {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: #FF9966;
+    }
+    .calendar-month { font-size: 18px; font-weight: 600; color: #333; }
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      padding: 0 8px;
+    }
+    .calendar-day-header {
+      text-align: center;
+      font-size: 12px;
+      color: #999;
+      padding: 8px;
+    }
+    .calendar-day {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #333;
+      border-radius: 50%;
+    }
+    .calendar-day.has-entry {
+      background: #FF9966;
+      color: #fff;
+      font-weight: 600;
+    }
+    .calendar-day.today {
+      border: 2px solid #FF9966;
+    }
+
+    /* Cat List */
+    .cat-item {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      gap: 16px;
+    }
+    .cat-avatar {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, #FFE4D6 0%, #FFD4C4 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .cat-info { flex: 1; }
+    .cat-name { font-size: 18px; font-weight: 600; color: #333; }
+    .cat-detail { font-size: 14px; color: #999; }
+    .cat-arrow { font-size: 20px; color: #ccc; }
+
+    /* Stats */
+    .stats-card { padding: 20px; }
+    .stats-title { font-size: 14px; color: #999; margin-bottom: 16px; }
+    .stats-chart {
+      height: 150px;
+      background: linear-gradient(to top, #FFE4D6 0%, transparent 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-around;
+      padding: 16px;
+    }
+    .stats-bar {
+      width: 32px;
+      background: #FF9966;
+      border-radius: 8px 8px 0 0;
+    }
+    .stats-value { text-align: center; margin-top: 16px; }
+    .stats-number { font-size: 32px; font-weight: 700; color: #FF9966; }
+    .stats-label { font-size: 14px; color: #999; }
+
+    /* Settings */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #999;
+      padding: 16px 8px 8px;
+      text-transform: uppercase;
+    }
+    .setting-item {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      gap: 12px;
+      border-bottom: 1px solid #f5f5f5;
+    }
+    .setting-item:last-child { border-bottom: none; }
+    .setting-icon { font-size: 20px; }
+    .setting-label { flex: 1; font-size: 16px; color: #333; }
+    .setting-value { font-size: 16px; color: #FF9966; font-weight: 600; }
+    .setting-check { font-size: 18px; color: #FF9966; font-weight: 700; }
+    .toggle {
+      width: 48px;
+      height: 28px;
+      background: #FF9966;
+      border-radius: 14px;
+      position: relative;
+    }
+    .toggle::after {
+      content: '';
+      width: 24px;
+      height: 24px;
+      background: #fff;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      right: 2px;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 32px;
+    }
+    .footer-emoji { font-size: 48px; margin-bottom: 8px; }
+    .footer-text { font-size: 14px; color: #999; }
+
+    /* Dark Mode Preview */
+    .dark-preview {
+      background: #1a1a1a;
+      color: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      margin: 16px;
+    }
+    .dark-preview h3 { color: #fff; margin-bottom: 8px; }
+    .dark-preview p { color: #999; font-size: 14px; }
+
+    /* Entry Form */
+    .form-section { padding: 16px; }
+    .form-label { font-size: 14px; color: #999; margin-bottom: 8px; }
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      font-size: 16px;
+      margin-bottom: 16px;
+    }
+    .mood-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mood-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #eee;
+      border-radius: 12px;
+      background: #fff;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    .mood-btn.selected {
+      border-color: #FF9966;
+      background: #FFF5E6;
+    }
+    .photo-placeholder {
+      width: 100%;
+      height: 200px;
+      background: #f5f5f5;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #999;
+      margin-bottom: 16px;
+      border: 2px dashed #ddd;
+    }
+    .photo-placeholder span:first-child { font-size: 48px; }
+    .save-btn {
+      width: 100%;
+      padding: 16px;
+      background: #FF9966;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Home Screen -->
+  <div id="home" class="screen active">
+    <div class="header">
+      <h1>🐱 猫の日記</h1>
+      <button class="header-btn">🔍</button>
+    </div>
+    <div class="content">
+      <div class="filter">
+        <span>🐱</span>
+        <select>
+          <option>すべての猫</option>
+          <option>ミケ</option>
+          <option>タマ</option>
+        </select>
+      </div>
+
+      <div class="card diary-entry">
+        <div class="diary-date">2026年6月7日 (土)</div>
+        <div class="diary-header">
+          <span class="diary-mood">😊</span>
+          <span class="diary-cat">ミケ</span>
+        </div>
+        <div class="diary-photo">🐱</div>
+        <div class="diary-text">今日はとてもよく遊んでくれた！新しいおもちゃがお気に入りみたい。</div>
+        <div class="diary-footer">
+          <span class="diary-weight">体重: 4.2kg</span>
+        </div>
+      </div>
+
+      <div class="card diary-entry">
+        <div class="diary-date">2026年6月6日 (金)</div>
+        <div class="diary-header">
+          <span class="diary-mood">😴</span>
+          <span class="diary-cat">タマ</span>
+        </div>
+        <div class="diary-text">一日中窓辺で寝ていた。気持ちよさそう...</div>
+        <div class="diary-footer">
+          <span class="diary-weight">体重: 5.1kg</span>
+        </div>
+      </div>
+
+      <div class="card diary-entry">
+        <div class="diary-date">2026年6月5日 (木)</div>
+        <div class="diary-header">
+          <span class="diary-mood">😺</span>
+          <span class="diary-cat">ミケ</span>
+        </div>
+        <div class="diary-text">ご飯をたくさん食べてくれた。健康そうで安心。</div>
+        <div class="diary-footer">
+          <span class="diary-weight">体重: 4.1kg</span>
+        </div>
+      </div>
+    </div>
+    <button class="fab" onclick="showScreen('entry')">+</button>
+  </div>
+
+  <!-- Calendar Screen -->
+  <div id="calendar" class="screen">
+    <div class="header">
+      <h1>📅 カレンダー</h1>
+    </div>
+    <div class="content">
+      <div class="card">
+        <div class="calendar-header">
+          <button>◀</button>
+          <span class="calendar-month">2026年6月</span>
+          <button>▶</button>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-day-header">日</div>
+          <div class="calendar-day-header">月</div>
+          <div class="calendar-day-header">火</div>
+          <div class="calendar-day-header">水</div>
+          <div class="calendar-day-header">木</div>
+          <div class="calendar-day-header">金</div>
+          <div class="calendar-day-header">土</div>
+          <div class="calendar-day"></div>
+          <div class="calendar-day">1</div>
+          <div class="calendar-day has-entry">2</div>
+          <div class="calendar-day">3</div>
+          <div class="calendar-day has-entry">4</div>
+          <div class="calendar-day has-entry">5</div>
+          <div class="calendar-day has-entry">6</div>
+          <div class="calendar-day today has-entry">7</div>
+          <div class="calendar-day">8</div>
+          <div class="calendar-day">9</div>
+          <div class="calendar-day">10</div>
+          <div class="calendar-day">11</div>
+          <div class="calendar-day">12</div>
+          <div class="calendar-day">13</div>
+          <div class="calendar-day">14</div>
+          <div class="calendar-day">15</div>
+          <div class="calendar-day">16</div>
+          <div class="calendar-day">17</div>
+          <div class="calendar-day">18</div>
+          <div class="calendar-day">19</div>
+          <div class="calendar-day">20</div>
+          <div class="calendar-day">21</div>
+          <div class="calendar-day">22</div>
+          <div class="calendar-day">23</div>
+          <div class="calendar-day">24</div>
+          <div class="calendar-day">25</div>
+          <div class="calendar-day">26</div>
+          <div class="calendar-day">27</div>
+          <div class="calendar-day">28</div>
+          <div class="calendar-day">29</div>
+          <div class="calendar-day">30</div>
+          <div class="calendar-day"></div>
+          <div class="calendar-day"></div>
+          <div class="calendar-day"></div>
+          <div class="calendar-day"></div>
+        </div>
+      </div>
+      <div style="padding: 16px; text-align: center; color: #999; font-size: 14px;">
+        オレンジの日付をタップすると日記が見れます
+      </div>
+    </div>
+  </div>
+
+  <!-- Cats Screen -->
+  <div id="cats" class="screen">
+    <div class="header">
+      <h1>🐱 うちの猫たち</h1>
+      <button class="header-btn">+</button>
+    </div>
+    <div class="content">
+      <div class="card">
+        <div class="cat-item" style="border-bottom: 1px solid #f5f5f5;">
+          <div class="cat-avatar">🐱</div>
+          <div class="cat-info">
+            <div class="cat-name">ミケ</div>
+            <div class="cat-detail">三毛猫 • 3歳 • ♀</div>
+          </div>
+          <span class="cat-arrow">›</span>
+        </div>
+        <div class="cat-item">
+          <div class="cat-avatar">😺</div>
+          <div class="cat-info">
+            <div class="cat-name">タマ</div>
+            <div class="cat-detail">白猫 • 5歳 • ♂</div>
+          </div>
+          <span class="cat-arrow">›</span>
+        </div>
+      </div>
+
+      <div style="padding: 32px; text-align: center;">
+        <div style="font-size: 64px; margin-bottom: 16px;">🐾</div>
+        <div style="color: #999; font-size: 14px;">新しい猫を追加するには<br>右上の + をタップ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Screen -->
+  <div id="stats" class="screen">
+    <div class="header">
+      <h1>📊 統計</h1>
+    </div>
+    <div class="content">
+      <div class="card stats-card">
+        <div class="stats-title">今月の日記数</div>
+        <div class="stats-value">
+          <div class="stats-number">12</div>
+          <div class="stats-label">エントリー</div>
+        </div>
+      </div>
+
+      <div class="card stats-card">
+        <div class="stats-title">ミケの体重推移</div>
+        <div class="stats-chart">
+          <div class="stats-bar" style="height: 60%;"></div>
+          <div class="stats-bar" style="height: 65%;"></div>
+          <div class="stats-bar" style="height: 70%;"></div>
+          <div class="stats-bar" style="height: 68%;"></div>
+          <div class="stats-bar" style="height: 75%;"></div>
+          <div class="stats-bar" style="height: 80%;"></div>
+          <div class="stats-bar" style="height: 78%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #999;">
+          <span>6/1</span>
+          <span>6/7</span>
+        </div>
+      </div>
+
+      <div class="card stats-card">
+        <div class="stats-title">気分の分布</div>
+        <div style="display: flex; justify-content: space-around; padding: 16px 0;">
+          <div style="text-align: center;">
+            <div style="font-size: 32px;">😊</div>
+            <div style="font-size: 18px; font-weight: 600; color: #FF9966;">45%</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 32px;">😺</div>
+            <div style="font-size: 18px; font-weight: 600; color: #FF9966;">30%</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 32px;">😴</div>
+            <div style="font-size: 18px; font-weight: 600; color: #FF9966;">20%</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 32px;">😿</div>
+            <div style="font-size: 18px; font-weight: 600; color: #FF9966;">5%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Screen -->
+  <div id="settings" class="screen">
+    <div class="header">
+      <h1>⚙️ 設定</h1>
+    </div>
+    <div class="content">
+      <div class="section-title">テーマ</div>
+      <div class="card">
+        <div class="setting-item">
+          <span class="setting-icon">⚙️</span>
+          <span class="setting-label">システム設定に従う</span>
+          <span class="setting-check">✓</span>
+        </div>
+        <div class="setting-item">
+          <span class="setting-icon">☀️</span>
+          <span class="setting-label">ライトモード</span>
+        </div>
+        <div class="setting-item">
+          <span class="setting-icon">🌙</span>
+          <span class="setting-label">ダークモード</span>
+        </div>
+      </div>
+
+      <div class="section-title">リマインダー</div>
+      <div class="card">
+        <div class="setting-item">
+          <span class="setting-icon">🔔</span>
+          <span class="setting-label">毎日のリマインダー</span>
+          <div class="toggle"></div>
+        </div>
+        <div class="setting-item">
+          <span class="setting-icon">⏰</span>
+          <span class="setting-label">通知時刻</span>
+          <span class="setting-value">20:00</span>
+        </div>
+      </div>
+
+      <div class="section-title">データ</div>
+      <div class="card">
+        <div class="setting-item">
+          <span class="setting-icon">📤</span>
+          <span class="setting-label">データをエクスポート</span>
+          <span class="cat-arrow">›</span>
+        </div>
+        <div class="setting-item">
+          <span class="setting-icon">📥</span>
+          <span class="setting-label">データをインポート</span>
+          <span class="cat-arrow">›</span>
+        </div>
+      </div>
+
+      <div class="section-title">このアプリについて</div>
+      <div class="card">
+        <div class="setting-item">
+          <span class="setting-label">アプリ名</span>
+          <span style="color: #666;">猫の日記</span>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">バージョン</span>
+          <span style="color: #666;">1.0.0</span>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="footer-emoji">🐱</div>
+        <div class="footer-text">猫との毎日を大切に</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Entry Form Screen -->
+  <div id="entry" class="screen">
+    <div class="header">
+      <button class="header-btn" onclick="showScreen('home')">✕</button>
+      <h1>日記を書く</h1>
+      <button class="header-btn">💾</button>
+    </div>
+    <div class="content">
+      <div class="card form-section">
+        <div class="form-label">猫を選択</div>
+        <select class="form-input">
+          <option>ミケ</option>
+          <option>タマ</option>
+        </select>
+
+        <div class="form-label">今日の気分</div>
+        <div class="mood-selector">
+          <button class="mood-btn selected">😊</button>
+          <button class="mood-btn">😺</button>
+          <button class="mood-btn">😴</button>
+          <button class="mood-btn">😿</button>
+          <button class="mood-btn">😾</button>
+        </div>
+
+        <div class="form-label">写真</div>
+        <div class="photo-placeholder">
+          <span>📷</span>
+          <span>タップして写真を追加</span>
+        </div>
+
+        <div class="form-label">日記</div>
+        <textarea class="form-input" rows="4" placeholder="今日の出来事を書こう..."></textarea>
+
+        <div class="form-label">体重 (kg)</div>
+        <input type="number" class="form-input" placeholder="4.2" step="0.1">
+
+        <button class="save-btn">保存する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dark Mode Preview -->
+  <div id="darkmode" class="screen">
+    <div class="header" style="background: #1a1a1a;">
+      <h1 style="color: #fff;">🌙 ダークモード</h1>
+    </div>
+    <div style="background: #1a1a1a; min-height: calc(100vh - 140px); padding: 16px;">
+      <div style="background: #2a2a2a; border-radius: 16px; padding: 16px; margin-bottom: 12px;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 4px;">2026年6月7日</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="font-size: 24px;">😊</span>
+          <span style="font-size: 16px; font-weight: 600; color: #fff;">ミケ</span>
+        </div>
+        <div style="font-size: 14px; color: #999; line-height: 1.5;">今日はとてもよく遊んでくれた！</div>
+      </div>
+      <div style="background: #2a2a2a; border-radius: 16px; padding: 16px;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 4px;">2026年6月6日</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="font-size: 24px;">😴</span>
+          <span style="font-size: 16px; font-weight: 600; color: #fff;">タマ</span>
+        </div>
+        <div style="font-size: 14px; color: #999; line-height: 1.5;">一日中窓辺で寝ていた...</div>
+      </div>
+      <div style="text-align: center; padding: 32px; color: #666;">
+        ダークモードは目に優しい表示です
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab active" onclick="showScreen('home')">
+      <span class="tab-icon">📖</span>
+      <span class="tab-label">日記</span>
+    </button>
+    <button class="tab" onclick="showScreen('calendar')">
+      <span class="tab-icon">📅</span>
+      <span class="tab-label">カレンダー</span>
+    </button>
+    <button class="tab" onclick="showScreen('cats')">
+      <span class="tab-icon">🐱</span>
+      <span class="tab-label">猫</span>
+    </button>
+    <button class="tab" onclick="showScreen('stats')">
+      <span class="tab-icon">📊</span>
+      <span class="tab-label">統計</span>
+    </button>
+    <button class="tab" onclick="showScreen('settings')">
+      <span class="tab-icon">⚙️</span>
+      <span class="tab-label">設定</span>
+    </button>
+    <button class="tab" onclick="showScreen('darkmode')">
+      <span class="tab-icon">🌙</span>
+      <span class="tab-label">Dark</span>
+    </button>
+  </div>
+
+  <script>
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      event.currentTarget.classList.add('active');
+      window.scrollTo(0, 0);
+    }
+  </script>
+</body>
+</html>
