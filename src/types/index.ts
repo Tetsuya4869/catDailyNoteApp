@@ -35,6 +35,7 @@ export interface DiaryEntry {
   content: string;
   mood: CatMood;
   photoUri?: string;
+  favorite?: boolean;
   createdAt: string;
   updatedAt: string;
 }

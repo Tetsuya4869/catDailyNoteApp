@@ -15,7 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { DiaryEntry, moodEmojis } from '../types';
-import { getDiaryEntries } from '../storage/diaryStorage';
+import { getDiaryEntries, saveDiaryEntry } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
@@ -34,6 +34,7 @@ export default function HomeScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -60,10 +61,19 @@ export default function HomeScreen() {
     setRefreshing(false);
   }
 
+  async function handleToggleFavorite(item: DiaryEntry) {
+    const updated = { ...item, favorite: !item.favorite };
+    await saveDiaryEntry(updated);
+    setEntries((prev) => prev.map((e) => (e.id === item.id ? updated : e)));
+  }
+
   const filteredEntries = useMemo(() => {
     let result = entries;
     if (selectedCatId) {
       result = result.filter((e) => e.catId === selectedCatId);
+    }
+    if (favoritesOnly) {
+      result = result.filter((e) => e.favorite);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -74,7 +84,7 @@ export default function HomeScreen() {
       );
     }
     return result;
-  }, [entries, searchQuery, selectedCatId]);
+  }, [entries, searchQuery, selectedCatId, favoritesOnly]);
 
   const sections = useMemo<Section[]>(() => {
     const groups = new Map<string, DiaryEntry[]>();
@@ -101,7 +111,15 @@ export default function HomeScreen() {
             <Text style={styles.date}>
               {format(new Date(item.date), 'M月d日(E)', { locale: ja })}
             </Text>
-            <Text style={styles.mood}>{moodEmojis[item.mood]}</Text>
+            <View style={styles.cardHeaderRight}>
+              <Text style={styles.mood}>{moodEmojis[item.mood]}</Text>
+              <TouchableOpacity
+                onPress={() => handleToggleFavorite(item)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.star}>{item.favorite ? '⭐' : '☆'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <Text style={styles.title} numberOfLines={1}>
             {item.title}
@@ -147,6 +165,14 @@ export default function HomeScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          <TouchableOpacity
+            style={[styles.favoriteFilter, favoritesOnly && styles.favoriteFilterActive]}
+            onPress={() => setFavoritesOnly((v) => !v)}
+          >
+            <Text style={styles.favoriteFilterText}>
+              {favoritesOnly ? '⭐' : '☆'}
+            </Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -217,13 +243,29 @@ const createStyles = (colors: ThemeColors) =>
     searchContainer: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.md,
+      flexDirection: 'row',
+      gap: spacing.sm,
     },
     searchInput: {
+      flex: 1,
       backgroundColor: colors.card,
       borderRadius: borderRadius.md,
       padding: spacing.md,
       fontSize: 16,
       color: colors.text,
+    },
+    favoriteFilter: {
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.md,
+      width: 48,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    favoriteFilterActive: {
+      backgroundColor: colors.primary,
+    },
+    favoriteFilterText: {
+      fontSize: 22,
     },
     filterBadge: {
       backgroundColor: colors.primary,
@@ -282,12 +324,20 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
       marginBottom: spacing.sm,
     },
+    cardHeaderRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+    },
     date: {
       fontSize: 14,
       color: colors.textMuted,
     },
     mood: {
       fontSize: 24,
+    },
+    star: {
+      fontSize: 20,
     },
     title: {
       fontSize: 18,
