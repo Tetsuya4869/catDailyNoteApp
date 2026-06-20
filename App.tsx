@@ -1,12 +1,22 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  DefaultTheme,
+  DarkTheme,
+  useNavigation,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import {
+  createBottomTabNavigator,
+  BottomTabBarButtonProps,
+} from '@react-navigation/bottom-tabs';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import CatsScreen from './src/screens/CatsScreen';
+import CatProfileScreen from './src/screens/CatProfileScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
@@ -14,9 +24,61 @@ import CatEditScreen from './src/screens/CatEditScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { CatProvider } from './src/contexts/CatContext';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
+import { spacing } from './src/constants/theme';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
+
+// 中央の「新規投稿」FAB。タブとしては機能せず、押下で投稿モーダルを開く。
+function NewPostPlaceholder() {
+  return <View />;
+}
+
+function CenterPostButton({ accessibilityState }: BottomTabBarButtonProps) {
+  const { colors } = useTheme();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  return (
+    <View style={centerStyles.wrap} pointerEvents="box-none">
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="新規投稿"
+        accessibilityState={accessibilityState}
+        activeOpacity={0.85}
+        style={[centerStyles.button, { backgroundColor: colors.primary }]}
+        onPress={() => navigation.navigate('DiaryEntry', {})}
+      >
+        <Text style={centerStyles.plus}>＋</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const centerStyles = StyleSheet.create({
+  wrap: {
+    top: -18,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    width: 64,
+  },
+  button: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  plus: {
+    fontSize: 30,
+    color: '#FFFFFF',
+    lineHeight: 34,
+  },
+});
 
 function MainTabs() {
   const { colors } = useTheme();
@@ -25,10 +87,16 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.primary,
+        headerTintColor: colors.text,
         headerTitleStyle: { fontWeight: 'bold' },
         headerShadowVisible: false,
-        tabBarStyle: { backgroundColor: colors.tabBar, borderTopColor: colors.border },
+        tabBarStyle: {
+          backgroundColor: colors.tabBar,
+          borderTopColor: colors.border,
+          height: 64,
+          paddingBottom: spacing.sm,
+          paddingTop: spacing.sm,
+        },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
       }}
@@ -37,10 +105,10 @@ function MainTabs() {
         name="Home"
         component={HomeScreen}
         options={{
-          title: '猫の日記',
-          tabBarLabel: '日記',
+          title: '猫日記',
+          tabBarLabel: 'ホーム',
           tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 24 }}>{focused ? '📖' : '📕'}</Text>
+            <Text style={{ fontSize: 22 }}>{focused ? '🏠' : '🏠'}</Text>
           ),
         }}
       />
@@ -51,29 +119,26 @@ function MainTabs() {
           title: 'カレンダー',
           tabBarLabel: 'カレンダー',
           tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 24 }}>{focused ? '📅' : '🗓'}</Text>
+            <Text style={{ fontSize: 22 }}>{focused ? '📅' : '🗓'}</Text>
           ),
         }}
       />
       <Tab.Screen
-        name="Cats"
+        name="NewPost"
+        component={NewPostPlaceholder}
+        options={{
+          tabBarLabel: () => null,
+          tabBarButton: (props) => <CenterPostButton {...props} />,
+        }}
+      />
+      <Tab.Screen
+        name="MyCats"
         component={CatsScreen}
         options={{
-          title: 'うちの猫',
-          tabBarLabel: '猫',
+          title: 'マイ猫',
+          tabBarLabel: 'マイ猫',
           tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 24 }}>{focused ? '🐱' : '😺'}</Text>
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Stats"
-        component={StatsScreen}
-        options={{
-          title: '統計',
-          tabBarLabel: '統計',
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 24 }}>{focused ? '📊' : '📈'}</Text>
+            <Text style={{ fontSize: 22 }}>{focused ? '🐈' : '🐈'}</Text>
           ),
         }}
       />
@@ -84,7 +149,7 @@ function MainTabs() {
           title: '設定',
           tabBarLabel: '設定',
           tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: 24 }}>{focused ? '⚙️' : '🔧'}</Text>
+            <Text style={{ fontSize: 22 }}>{focused ? '⚙️' : '⚙️'}</Text>
           ),
         }}
       />
@@ -113,7 +178,7 @@ function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.primary,
+          headerTintColor: colors.text,
           headerTitleStyle: { fontWeight: 'bold' },
           headerShadowVisible: false,
         }}
@@ -124,10 +189,16 @@ function AppNavigator() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
+          name="CatProfile"
+          component={CatProfileScreen}
+          options={{ title: '猫プロフィール' }}
+        />
+        <Stack.Screen
           name="DiaryEntry"
           component={DiaryEntryScreen}
           options={({ route }) => ({
-            title: route.params?.id ? '日記を編集' : '新しい日記',
+            title: route.params?.id ? '日記を編集' : '新規投稿',
+            presentation: 'modal',
           })}
         />
         <Stack.Screen
@@ -135,7 +206,13 @@ function AppNavigator() {
           component={CatEditScreen}
           options={({ route }) => ({
             title: route.params?.id ? '猫を編集' : '猫を追加',
+            presentation: 'modal',
           })}
+        />
+        <Stack.Screen
+          name="Stats"
+          component={StatsScreen}
+          options={{ title: '統計' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

@@ -1,35 +1,41 @@
+// Color palette based on the "猫日記 画面構成" wireframe.
+// クリーム / ピーチ / テラコッタ / ブラウン / テキスト
 export const lightColors = {
-  primary: '#FF9966',
-  background: '#FFF5E6',
-  card: '#FFFFFF',
-  text: '#333333',
-  textSecondary: '#666666',
-  textMuted: '#888888',
-  textPlaceholder: '#999999',
-  border: '#D0C4B8',
-  backgroundMuted: '#E8E0D5',
-  danger: '#E55555',
+  primary: '#E0976A', // テラコッタ — 強調・選択
+  peach: '#F1D4B5', // ピーチ — アクセント面・ヘッダー
+  brown: '#B08862', // ブラウン — セカンダリ・カテゴリ
+  background: '#FBF1E6', // クリーム
+  card: '#FFFCF8',
+  text: '#4A3B2E', // テキスト（濃ブラウン）
+  textSecondary: '#7A6A5A',
+  textMuted: '#A8998A',
+  textPlaceholder: '#B8AB9C',
+  border: '#E5D8C8',
+  backgroundMuted: '#F3E4D2',
+  danger: '#D9694E',
   shadow: '#000000',
-  tabBar: '#FFFFFF',
-  sunday: '#E55555',
-  saturday: '#5577EE',
+  tabBar: '#FFFCF8',
+  sunday: '#D9694E',
+  saturday: '#6A8CC7',
 } as const;
 
 export const darkColors = {
-  primary: '#FF9966',
-  background: '#1A1A1A',
-  card: '#2D2D2D',
-  text: '#EEEEEE',
-  textSecondary: '#BBBBBB',
-  textMuted: '#888888',
-  textPlaceholder: '#666666',
-  border: '#444444',
-  backgroundMuted: '#333333',
-  danger: '#FF6666',
+  primary: '#E0976A',
+  peach: '#3A2E24',
+  brown: '#C9A079',
+  background: '#1E1A16',
+  card: '#2A241E',
+  text: '#F0E8DF',
+  textSecondary: '#C2B5A6',
+  textMuted: '#8A7D6E',
+  textPlaceholder: '#6E6358',
+  border: '#3E362E',
+  backgroundMuted: '#332B23',
+  danger: '#E07A60',
   shadow: '#000000',
-  tabBar: '#2D2D2D',
-  sunday: '#FF7777',
-  saturday: '#7799FF',
+  tabBar: '#2A241E',
+  sunday: '#E07A60',
+  saturday: '#88A4D6',
 } as const;
 
 export type ThemeColors = Record<keyof typeof lightColors, string>;
@@ -47,6 +53,7 @@ export const borderRadius = {
   sm: 8,
   md: 12,
   lg: 16,
+  xl: 24,
   full: 30,
 } as const;
 

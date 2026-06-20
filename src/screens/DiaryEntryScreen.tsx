@@ -41,10 +41,13 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { cats, selectedCatId } = useCats();
   const editId = route.params?.id;
+  const presetCatId = route.params?.catId;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [mood, setMood] = useState<CatMood>('happy');
-  const [catId, setCatId] = useState<string | undefined>(selectedCatId || undefined);
+  const [catId, setCatId] = useState<string | undefined>(
+    presetCatId || selectedCatId || undefined
+  );
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);

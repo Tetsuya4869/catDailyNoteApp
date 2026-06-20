@@ -24,8 +24,8 @@ export default function CatsScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { cats, selectedCatId, setSelectedCatId, refreshCats } = useCats();
 
-  function handleSelect(cat: Cat) {
-    setSelectedCatId(selectedCatId === cat.id ? null : cat.id);
+  function handleOpen(cat: Cat) {
+    navigation.navigate('CatProfile', { catId: cat.id });
   }
 
   function handleDelete(cat: Cat) {
@@ -50,11 +50,10 @@ export default function CatsScreen() {
   }
 
   function renderItem({ item }: { item: Cat }) {
-    const selected = selectedCatId === item.id;
     return (
       <TouchableOpacity
-        style={[styles.card, selected && styles.cardSelected]}
-        onPress={() => handleSelect(item)}
+        style={styles.card}
+        onPress={() => handleOpen(item)}
         onLongPress={() => handleDelete(item)}
       >
         {item.photoUri ? (
@@ -70,7 +69,6 @@ export default function CatsScreen() {
           <Text style={styles.name}>{item.name}</Text>
           <Text style={styles.color}>{catColorEmojis[item.color]}</Text>
         </View>
-        {selected && <Text style={styles.checkmark}>✓</Text>}
       </TouchableOpacity>
     );
   }
@@ -87,9 +85,7 @@ export default function CatsScreen() {
         <>
           <View style={styles.hint}>
             <Text style={styles.hintText}>
-              {selectedCatId
-                ? 'タップで選択解除・長押しで削除'
-                : 'タップで日記をフィルタ・長押しで削除'}
+              タップでプロフィール・長押しで削除
             </Text>
           </View>
           <FlatList

@@ -1,11 +1,22 @@
+// ===== 猫 =====
+export type CatGender = 'male' | 'female' | 'unknown';
+
 export interface Cat {
   id: string;
   name: string;
   color: CatColor;
+  gender?: CatGender;
   birthDate?: string;
+  weightGoal?: number;
   photoUri?: string;
   createdAt: string;
 }
+
+export const catGenderSymbols: Record<CatGender, string> = {
+  male: '♂',
+  female: '♀',
+  unknown: '・',
+};
 
 export type CatColor = 'orange' | 'black' | 'white' | 'gray' | 'calico' | 'tabby';
 
@@ -27,6 +38,7 @@ export const catColorLabels: Record<CatColor, string> = {
   tabby: 'キジトラ',
 };
 
+// ===== 日記（投稿）=====
 export interface DiaryEntry {
   id: string;
   catId?: string;
@@ -35,6 +47,7 @@ export interface DiaryEntry {
   content: string;
   mood: CatMood;
   photoUri?: string;
+  category?: PostCategory;
   favorite?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -57,3 +70,69 @@ export const moodLabels: Record<CatMood, string> = {
   hungry: 'おなかすいた',
   relaxed: 'リラックス',
 };
+
+// ===== 投稿カテゴリ（タグ）=====
+export type PostCategory =
+  | 'meal'
+  | 'play'
+  | 'sleep'
+  | 'health'
+  | 'grooming'
+  | 'other';
+
+export const postCategoryEmojis: Record<PostCategory, string> = {
+  meal: '🍚',
+  play: '🧶',
+  sleep: '💤',
+  health: '🏥',
+  grooming: '🪥',
+  other: '🐾',
+};
+
+export const postCategoryLabels: Record<PostCategory, string> = {
+  meal: 'ごはん',
+  play: 'あそび',
+  sleep: 'おひるね',
+  health: '通院',
+  grooming: 'お手入れ',
+  other: 'その他',
+};
+
+// ===== 健康記録 =====
+export type HealthType = 'weight' | 'vet' | 'vaccine' | 'medication';
+
+export interface HealthRecord {
+  id: string;
+  catId: string;
+  type: HealthType;
+  date: string;
+  weightKg?: number;
+  title?: string;
+  note?: string;
+  createdAt: string;
+}
+
+export const healthTypeEmojis: Record<HealthType, string> = {
+  weight: '⚖️',
+  vet: '🏥',
+  vaccine: '💉',
+  medication: '💊',
+};
+
+export const healthTypeLabels: Record<HealthType, string> = {
+  weight: '体重',
+  vet: '通院',
+  vaccine: 'ワクチン',
+  medication: '投薬',
+};
+
+// ===== 予定（通院・ワクチンのリマインド）=====
+export interface Appointment {
+  id: string;
+  catId: string;
+  type: 'vet' | 'vaccine';
+  date: string;
+  title: string;
+  note?: string;
+  done: boolean;
+}
