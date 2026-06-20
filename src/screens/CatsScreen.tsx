@@ -133,9 +133,6 @@ const createStyles = (colors: ThemeColors) =>
       borderWidth: 2,
       borderColor: 'transparent',
     },
-    cardSelected: {
-      borderColor: colors.primary,
-    },
     photo: {
       width: '100%',
       aspectRatio: 1,
@@ -163,18 +160,6 @@ const createStyles = (colors: ThemeColors) =>
     },
     color: {
       fontSize: 16,
-    },
-    checkmark: {
-      position: 'absolute',
-      top: spacing.sm,
-      right: spacing.sm,
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: colors.primary,
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      paddingHorizontal: 6,
-      overflow: 'hidden',
     },
     emptyContainer: {
       flex: 1,
