@@ -9,8 +9,10 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { RootStackParamList } from '../navigation/types';
 import { format } from 'date-fns';
 import { useTheme } from '../contexts/ThemeContext';
 import {
@@ -37,6 +39,8 @@ function reminderTimeToDate(settings: ReminderSettings): Date {
 export default function SettingsScreen() {
   const { colors, preference, setPreference } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [reminder, setReminder] = useState<ReminderSettings | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
 
@@ -135,6 +139,18 @@ export default function SettingsScreen() {
         />
       )}
 
+      <Text style={styles.sectionTitle}>記録</Text>
+      <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => navigation.navigate('Stats')}
+        >
+          <Text style={styles.optionEmoji}>📊</Text>
+          <Text style={styles.optionLabel}>統計を見る</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.sectionTitle}>このアプリについて</Text>
       <View style={styles.card}>
         <View style={styles.infoRow}>
@@ -205,6 +221,10 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 18,
       fontWeight: 'bold',
       color: colors.primary,
+    },
+    chevron: {
+      fontSize: 22,
+      color: colors.textMuted,
     },
     infoRow: {
       flexDirection: 'row',
