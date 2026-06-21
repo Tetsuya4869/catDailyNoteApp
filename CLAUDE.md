@@ -93,10 +93,12 @@ text: '#4A3B2E'
 
 ## データモデル
 
-- **Cat**: id, name, color, birthDate?, gender?, photoUri?
-- **DiaryEntry**: id, catId, date, content, photoUri?, mood?, category?, weight?, isFavorite
-- **HealthRecord**: id, catId, date, type (weight/vaccine/vet/medication), value?, notes?
-- **Appointment**: id, catId, date, type, title, notes?
+`src/types/index.ts` が単一の情報源（source of truth）です。
+
+- **Cat**: id, name, color, gender?, birthDate?, weightGoal?, photoUri?, createdAt
+- **DiaryEntry**: id, catId?, date, title, content, mood, photoUri?, category?, favorite?, createdAt, updatedAt
+- **HealthRecord**: id, catId, type (weight/vet/vaccine/medication), date, weightKg?, title?, note?, createdAt
+- **Appointment**: id, catId, type (vet/vaccine), date, title, note?, done
 
 ## テスト
 
