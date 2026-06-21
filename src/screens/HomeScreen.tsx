@@ -40,20 +40,28 @@ export default function HomeScreen() {
 
   const selectedCat = cats.find((c) => c.id === selectedCatId);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadEntries();
-    }, [])
+  const loadEntries = useCallback(
+    async (isActive: () => boolean = () => true) => {
+      const data = await getDiaryEntries();
+      if (!isActive()) return;
+      const sorted = [...data].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setEntries(sorted);
+      setLoading(false);
+    },
+    []
   );
 
-  async function loadEntries() {
-    const data = await getDiaryEntries();
-    const sorted = [...data].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    setEntries(sorted);
-    setLoading(false);
-  }
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadEntries(() => active);
+      return () => {
+        active = false;
+      };
+    }, [loadEntries])
+  );
 
   async function handleRefresh() {
     setRefreshing(true);

@@ -46,7 +46,13 @@ export default function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getReminderSettings().then(setReminder);
+      let active = true;
+      getReminderSettings().then((settings) => {
+        if (active) setReminder(settings);
+      });
+      return () => {
+        active = false;
+      };
     }, [])
   );
 

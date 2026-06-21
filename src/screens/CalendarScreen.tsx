@@ -37,17 +37,25 @@ export default function CalendarScreen() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadEntries();
-    }, [])
+  const loadEntries = useCallback(
+    async (isActive: () => boolean = () => true) => {
+      const data = await getDiaryEntries();
+      if (!isActive()) return;
+      setEntries(data);
+      setLoading(false);
+    },
+    []
   );
 
-  async function loadEntries() {
-    const data = await getDiaryEntries();
-    setEntries(data);
-    setLoading(false);
-  }
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadEntries(() => active);
+      return () => {
+        active = false;
+      };
+    }, [loadEntries])
+  );
 
   const entriesByDate = useMemo(() => {
     const map = new Map<string, DiaryEntry[]>();

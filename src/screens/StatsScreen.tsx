@@ -25,17 +25,25 @@ export default function StatsScreen() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadEntries();
-    }, [])
+  const loadEntries = useCallback(
+    async (isActive: () => boolean = () => true) => {
+      const data = await getDiaryEntries();
+      if (!isActive()) return;
+      setEntries(data);
+      setLoading(false);
+    },
+    []
   );
 
-  async function loadEntries() {
-    const data = await getDiaryEntries();
-    setEntries(data);
-    setLoading(false);
-  }
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadEntries(() => active);
+      return () => {
+        active = false;
+      };
+    }, [loadEntries])
+  );
 
   async function handleExport() {
     if (entries.length === 0) {
