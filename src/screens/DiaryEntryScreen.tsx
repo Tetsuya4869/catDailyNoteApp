@@ -51,6 +51,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [createdAt, setCreatedAt] = useState<string | undefined>();
 
   useEffect(() => {
     if (editId) {
@@ -68,6 +69,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       setCatId(entry.catId);
       setPhotoUri(entry.photoUri);
       setDate(new Date(entry.date));
+      setCreatedAt(entry.createdAt);
     }
   }
 
@@ -113,7 +115,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       content: content.trim(),
       mood,
       photoUri,
-      createdAt: editId ? date.toISOString() : new Date().toISOString(),
+      createdAt: createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Cat, catColorEmojis } from '../types';
 import { deleteCat } from '../storage/catStorage';
@@ -23,6 +23,12 @@ export default function CatsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { cats, selectedCatId, setSelectedCatId, refreshCats } = useCats();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshCats();
+    }, [refreshCats])
+  );
 
   function handleOpen(cat: Cat) {
     navigation.navigate('CatProfile', { catId: cat.id });

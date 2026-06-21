@@ -15,7 +15,15 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { Cat, CatColor, catColorEmojis, catColorLabels } from '../types';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import {
+  Cat,
+  CatColor,
+  CatGender,
+  catColorEmojis,
+  catColorLabels,
+  catGenderSymbols,
+} from '../types';
 import { saveCat, getCatById } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -28,6 +36,19 @@ type Props = {
 };
 
 const catColors: CatColor[] = ['orange', 'black', 'white', 'gray', 'calico', 'tabby'];
+const genders: CatGender[] = ['male', 'female', 'unknown'];
+const genderLabels: Record<CatGender, string> = {
+  male: 'オス',
+  female: 'メス',
+  unknown: '不明',
+};
+
+function formatDate(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
 
 export default function CatEditScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
@@ -36,6 +57,9 @@ export default function CatEditScreen({ navigation, route }: Props) {
   const editId = route.params?.id;
   const [name, setName] = useState('');
   const [color, setColor] = useState<CatColor>('orange');
+  const [gender, setGender] = useState<CatGender>('unknown');
+  const [birthDate, setBirthDate] = useState<string | undefined>();
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | undefined>();
 
   useEffect(() => {
@@ -50,6 +74,8 @@ export default function CatEditScreen({ navigation, route }: Props) {
     if (cat) {
       setName(cat.name);
       setColor(cat.color);
+      setGender(cat.gender ?? 'unknown');
+      setBirthDate(cat.birthDate);
       setPhotoUri(cat.photoUri);
     }
   }
@@ -78,6 +104,8 @@ export default function CatEditScreen({ navigation, route }: Props) {
       id: editId || Date.now().toString(),
       name: name.trim(),
       color,
+      gender,
+      birthDate,
       photoUri,
       createdAt: editId ? '' : new Date().toISOString(),
     };
@@ -141,6 +169,54 @@ export default function CatEditScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           ))}
         </View>
+
+        <Text style={styles.label}>性別</Text>
+        <View style={styles.genderContainer}>
+          {genders.map((g) => (
+            <TouchableOpacity
+              key={g}
+              style={[styles.genderButton, gender === g && styles.genderButtonActive]}
+              onPress={() => setGender(g)}
+            >
+              <Text
+                style={[
+                  styles.genderText,
+                  gender === g && styles.genderTextActive,
+                ]}
+              >
+                {catGenderSymbols[g]} {genderLabels[g]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.label}>誕生日</Text>
+        <TouchableOpacity
+          style={styles.input}
+          onPress={() => setShowDatePicker(true)}
+        >
+          <Text style={birthDate ? styles.dateText : styles.datePlaceholder}>
+            {birthDate ? formatDate(birthDate) : '未設定（タップして選択）'}
+          </Text>
+        </TouchableOpacity>
+        {birthDate && (
+          <TouchableOpacity onPress={() => setBirthDate(undefined)}>
+            <Text style={styles.clearDate}>誕生日をクリア</Text>
+          </TouchableOpacity>
+        )}
+        {showDatePicker && (
+          <DateTimePicker
+            value={birthDate ? new Date(birthDate) : new Date()}
+            mode="date"
+            maximumDate={new Date()}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(Platform.OS === 'ios');
+              if (event.type === 'set' && selectedDate) {
+                setBirthDate(selectedDate.toISOString());
+              }
+            }}
+          />
+        )}
       </ScrollView>
 
       <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
@@ -233,6 +309,43 @@ const createStyles = (colors: ThemeColors) =>
     colorLabelActive: {
       color: '#FFFFFF',
       fontWeight: 'bold',
+    },
+    genderContainer: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginBottom: spacing.xxl,
+    },
+    genderButton: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.card,
+    },
+    genderButtonActive: {
+      backgroundColor: colors.primary,
+    },
+    genderText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    genderTextActive: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+    },
+    dateText: {
+      fontSize: 16,
+      color: colors.text,
+    },
+    datePlaceholder: {
+      fontSize: 16,
+      color: colors.textPlaceholder,
+    },
+    clearDate: {
+      fontSize: 13,
+      color: colors.primary,
+      marginTop: -spacing.lg,
+      marginBottom: spacing.xxl,
     },
     saveButton: {
       backgroundColor: colors.primary,
