@@ -4,61 +4,112 @@ Claude Code がこのプロジェクトで作業する際の指示書です。
 
 ## プロジェクト概要
 
-猫の写真にキャプションを付けて日記形式で管理する React Native (Expo) モバイルアプリ。
+猫の日記アプリ - 猫ごとに日記・健康記録・写真を管理する React Native (Expo) モバイルアプリ。
 
 ## 開発コマンド
 
 ```bash
 npm start          # 開発サーバー起動（Expo Go でスキャン）
+npm test           # Jest テスト実行
 npm run android    # Android エミュレータ起動
 npm run ios        # iOS シミュレータ起動（macOS のみ）
+npx tsc --noEmit   # TypeScript 型チェック
 ```
 
 ## 技術スタック
 
-- **Expo** ~55.0.4 (managed workflow)
-- **React Native** 0.83.2 / **React** 19.2.0 / **TypeScript**
-- **React Navigation** v7 — `@react-navigation/native-stack` を使用（`@react-navigation/stack` は不使用）
+- **Expo** ~50.0.0 (managed workflow)
+- **React Native** 0.73.2 / **React** 18.2.0 / **TypeScript**
+- **React Navigation** v6
+  - `@react-navigation/native-stack` — スタックナビゲーション
+  - `@react-navigation/bottom-tabs` — 4タブ + 中央 FAB
 - **expo-image-picker** — 写真ライブラリへのアクセス
 - **expo-file-system** — 写真をアプリ内にコピーして永続化
-- **AsyncStorage** — エントリデータの永続化
+- **AsyncStorage** — データの永続化
+- **Jest** — ユニットテスト
 
-## ディレクトリ構成
+## アーキテクチャ
+
+### ナビゲーション構造（Plan A: タイムライン中心）
+
+```
+MainTabs (BottomTabNavigator)
+├── ホーム     — タイムライン（猫切替チップ付き）
+├── カレンダー — 月間カレンダー
+├── [中央FAB]  — 新規投稿モーダル
+├── マイ猫    — 猫一覧（2カラムグリッド）
+└── 設定      — テーマ・リマインダー・データ管理
+
+Stack (モーダル/詳細)
+├── CatProfile  — 猫プロフィール（日記/健康/アルバム セグメント）
+├── DiaryEntry  — 日記投稿/編集
+├── CatEdit     — 猫追加/編集
+└── Stats       — 統計
+```
+
+### ディレクトリ構成
 
 ```
 src/
-├── types/DiaryEntry.ts        # DiaryEntry 型・RootStackParamList
-├── storage/storage.ts         # AsyncStorage CRUD + ファイルコピー
+├── constants/theme.ts         # カラーパレット（テラコッタ/クリーム）、spacing、borderRadius
+├── contexts/
+│   ├── CatContext.tsx         # 猫一覧・選択状態のグローバル管理
+│   └── ThemeContext.tsx       # ライト/ダーク/システムテーマ
+├── navigation/types.ts        # RootStackParamList, TabParamList
 ├── screens/
-│   ├── HomeScreen.tsx         # エントリ一覧（useFocusEffect でリロード）
-│   ├── NewEntryScreen.tsx     # 写真選択 + キャプション入力
-│   └── EntryDetailScreen.tsx  # 詳細表示 + 削除
-└── components/
-    └── EntryCard.tsx          # 一覧カードコンポーネント
-App.tsx                        # NavigationContainer + Stack.Navigator
+│   ├── HomeScreen.tsx         # タイムライン（猫切替チップ）
+│   ├── CalendarScreen.tsx     # 月間カレンダー
+│   ├── CatsScreen.tsx         # マイ猫（2カラムグリッド）
+│   ├── CatProfileScreen.tsx   # 猫プロフィール（セグメント: 日記/健康/アルバム）
+│   ├── CatEditScreen.tsx      # 猫追加/編集
+│   ├── DiaryEntryScreen.tsx   # 日記投稿/編集
+│   ├── SettingsScreen.tsx     # 設定
+│   └── StatsScreen.tsx        # 統計
+├── storage/
+│   ├── catStorage.ts          # 猫 CRUD
+│   ├── diaryStorage.ts        # 日記 CRUD
+│   ├── healthStorage.ts       # 健康記録・予定 CRUD
+│   ├── settingsStorage.ts     # 設定の永続化
+│   └── __tests__/             # ストレージのユニットテスト
+├── types/index.ts             # Cat, DiaryEntry, HealthRecord, Appointment 等
+└── utils/
+    ├── age.ts                 # formatCatAge（N歳Mヶ月）
+    ├── export.ts              # データエクスポート
+    └── notifications.ts       # リマインダー通知
+App.tsx                        # ThemeProvider > CatProvider > NavigationContainer
 ```
 
-## コーディング規約
+## カラーパレット
 
-- 関数コンポーネント + hooks のみ使用（クラスコンポーネント不使用）
-- スタイルは各ファイル末尾で `StyleSheet.create` にまとめる
-- 新しい画面は `src/screens/` へ、再利用パーツは `src/components/` へ
-- 型は `src/types/` で一元管理する
+```typescript
+// ライトテーマ
+primary: '#E0976A'       // テラコッタ
+peach: '#F1D4B5'
+brown: '#B08862'
+background: '#FBF1E6'    // クリーム
+card: '#FFFFFF'
+text: '#4A3B2E'
+```
 
 ## データモデル
 
-```typescript
-interface DiaryEntry {
-  id: string;       // Date.now() の文字列
-  date: string;     // YYYY-MM-DD
-  photoUri: string; // documentDirectory/photos/ 以下のローカルパス
-  caption: string;
-  createdAt: string;
-}
-```
+- **Cat**: id, name, color, birthDate?, gender?, photoUri?
+- **DiaryEntry**: id, catId, date, content, photoUri?, mood?, category?, weight?, isFavorite
+- **HealthRecord**: id, catId, date, type (weight/vaccine/vet/medication), value?, notes?
+- **Appointment**: id, catId, date, type, title, notes?
 
-## 注意事項
+## テスト
 
-- 写真は必ず `copyPhotoToAppDir()` でアプリ内にコピーしてから保存する（一時URIは使わない）
-- エントリ削除時は AsyncStorage とファイルシステムの両方を削除する（`deleteEntry()` が担当）
-- パッケージ追加は `npx expo install <pkg>` を使う（SDK バージョン互換性を自動解決するため）
+45 件のユニットテストがあります:
+- catStorage.test.ts (9)
+- diaryStorage.test.ts (9)
+- healthStorage.test.ts (10)
+- settingsStorage.test.ts (9)
+- age.test.ts (8)
+
+## コーディング規約
+
+- 日本語 UI テキスト
+- TypeScript strict mode
+- 関数コンポーネント + Hooks
+- StyleSheet.create でテーマ対応（createStyles パターン）
