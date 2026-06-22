@@ -16,14 +16,16 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.catdailynote.app"
+      "bundleIdentifier": "com.catdailynote.app",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFF5E6"
       },
-      "package": "com.catdailynote.app"
+      "package": "com.catdailynote.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"

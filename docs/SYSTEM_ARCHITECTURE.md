@@ -223,7 +223,184 @@ flowchart TB
 
 ---
 
-## 6. FAQ
+## 6. 展開方法（iOS/Android対応）
+
+4つの展開方法を比較し、それぞれのアーキテクチャを示します。
+
+### 6.1 コスト比較表
+
+| 方式 | Android | iOS | 合計（初年度） | 適合度 |
+|------|---------|-----|----------------|--------|
+| Expo Go | $0 | $0 | $0 | △（通知制限） |
+| APK/AdHoc | $0 | $99/年 | $99 | ○ |
+| TestFlight + Internal | $25（一回） | $99/年 | $124 | ○ |
+| ストア公開 | $25（一回） | $99/年 | $124 | △（過剰） |
+| **推奨構成** | **$0** | **$99/年** | **$99** | **◎** |
+
+---
+
+### 6.2 方式1: Expo Go（開発・テスト用）
+
+```mermaid
+sequenceDiagram
+    participant Dev as 開発者PC
+    participant Expo as Expo Dev Server
+    participant User as 配布対象者
+    participant App as Expo Goアプリ
+
+    Dev->>Expo: npx expo start
+    Expo-->>Dev: QRコード生成
+    Dev->>User: QRコード共有(LINE等)
+    User->>App: Expo Goインストール
+    App->>Expo: QRスキャン→接続
+    Expo-->>App: JSバンドル配信
+    App-->>User: アプリ起動
+```
+
+| 項目 | 内容 |
+|------|------|
+| コスト | **$0** |
+| 対応OS | iOS / Android |
+| 制限 | expo-notifications制限、開発者PC起動必須 |
+| 適合度 | △（本アプリは通知使用のため非推奨） |
+
+---
+
+### 6.3 方式2: APK/AdHoc直接配布
+
+```mermaid
+flowchart TB
+    subgraph Build["EAS Build"]
+        A[eas build -p android<br/>--profile preview] --> B[APK生成]
+        C[eas build -p ios<br/>--profile preview] --> D[IPA生成]
+    end
+    
+    subgraph Android["Android配布（無料）"]
+        B --> E[Google Drive/LINE共有]
+        E --> F[提供元不明許可]
+        F --> G[インストール完了]
+    end
+    
+    subgraph iOS["iOS配布（$99/年）"]
+        D --> H[UDID収集]
+        H --> I[AdHocプロファイル作成]
+        I --> J[Diawi等でホスト]
+        J --> K[インストール完了]
+    end
+```
+
+| 項目 | Android | iOS |
+|------|---------|-----|
+| コスト | **$0** | **$99/年** |
+| 手順 | APK共有→即インストール | UDID収集→プロファイル作成→共有 |
+| 制限 | 「提供元不明」許可必要 | 最大100台、UDID管理必要 |
+
+---
+
+### 6.4 方式3: TestFlight + Internal Testing
+
+```mermaid
+flowchart LR
+    subgraph Build["ビルド"]
+        A[eas build] --> B{OS}
+        B -->|iOS| C[IPA]
+        B -->|Android| D[AAB]
+    end
+    
+    subgraph Submit["提出"]
+        C --> E[eas submit -p ios]
+        D --> F[eas submit -p android]
+        E --> G[TestFlight]
+        F --> H[Internal Testing]
+    end
+    
+    subgraph Invite["招待"]
+        G --> I[メールで招待]
+        H --> J[Googleアカウント追加]
+    end
+    
+    subgraph Install["インストール"]
+        I --> K[TestFlightアプリから]
+        J --> L[Play Storeから]
+    end
+```
+
+| 項目 | iOS | Android |
+|------|-----|---------|
+| コスト | **$99/年** | **$25（一回）** |
+| プラットフォーム | TestFlight | Google Play Internal Testing |
+| メリット | UDID不要、OTAアップデート | 正規ルート配布 |
+
+---
+
+### 6.5 方式4: ストア公開
+
+```mermaid
+flowchart TB
+    subgraph Prep["準備"]
+        A[アイコン1024x1024] --> B[スクリーンショット]
+        B --> C[プライバシーポリシー]
+        C --> D[メタデータ入力]
+    end
+    
+    subgraph Build["ビルド・提出"]
+        D --> E[eas build --profile production]
+        E --> F[eas submit]
+    end
+    
+    subgraph Review["審査"]
+        F --> G{審査}
+        G -->|Apple| H[1-7日]
+        G -->|Google| I[数時間-3日]
+    end
+    
+    subgraph Release["公開"]
+        H --> J[App Store]
+        I --> K[Google Play]
+        J --> L[一般ユーザー]
+        K --> L
+    end
+```
+
+| 項目 | 費用 |
+|------|------|
+| Apple Developer | $99/年 |
+| Google Play | $25（一回） |
+| 初年度合計 | 約$124（約18,750円） |
+| 適合度 | △（数人向けには過剰） |
+
+---
+
+### 6.6 推奨構成: Android APK + iOS TestFlight
+
+```mermaid
+flowchart LR
+    subgraph Setup["初期セットアップ"]
+        A[Apple Developer登録<br/>$99/年] --> B[eas.json作成]
+        B --> C[アイコン画像準備]
+    end
+    
+    subgraph Android["Android（無料）"]
+        D[eas build -p android<br/>--profile preview] --> E[APK]
+        E --> F[Google Drive共有]
+        F --> G[Androidユーザー]
+    end
+    
+    subgraph iOS["iOS（$99/年）"]
+        H[eas build -p ios<br/>--profile production] --> I[eas submit]
+        I --> J[TestFlight招待]
+        J --> K[iOSユーザー]
+    end
+    
+    Setup --> Android
+    Setup --> iOS
+```
+
+**年間コスト: $99（約15,000円）** — iOSを含む配布の最小コスト
+
+---
+
+## 7. FAQ
 
 ### Q: 端末を変えたらデータは消える？
 **A**: はい。エクスポート機能で事前にバックアップし、新端末でインポートしてください。
