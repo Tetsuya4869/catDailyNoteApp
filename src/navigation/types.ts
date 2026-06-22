@@ -1,5 +1,6 @@
 // フェーズ1で実装済みのルート。完全な目標構成は DESIGN.md を参照。
 export type RootStackParamList = {
+  Login: undefined;
   MainTabs: undefined;
   CatProfile: { catId: string };
   DiaryEntry: { id?: string; catId?: string };

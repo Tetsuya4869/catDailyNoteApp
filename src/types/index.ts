@@ -3,6 +3,7 @@ export type CatGender = 'male' | 'female' | 'unknown';
 
 export interface Cat {
   id: string;
+  userId?: string;
   name: string;
   color: CatColor;
   gender?: CatGender;
@@ -41,6 +42,7 @@ export const catColorLabels: Record<CatColor, string> = {
 // ===== 日記（投稿）=====
 export interface DiaryEntry {
   id: string;
+  userId?: string;
   catId?: string;
   date: string;
   title: string;
@@ -103,6 +105,7 @@ export type HealthType = 'weight' | 'vet' | 'vaccine' | 'medication';
 
 export interface HealthRecord {
   id: string;
+  userId?: string;
   catId: string;
   type: HealthType;
   date: string;
@@ -129,6 +132,7 @@ export const healthTypeLabels: Record<HealthType, string> = {
 // ===== 予定（通院・ワクチンのリマインド）=====
 export interface Appointment {
   id: string;
+  userId?: string;
   catId: string;
   type: 'vet' | 'vaccine';
   date: string;

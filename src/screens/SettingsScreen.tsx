@@ -15,6 +15,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { RootStackParamList } from '../navigation/types';
 import { format } from 'date-fns';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   ThemePreference,
   ReminderSettings,
@@ -38,11 +39,23 @@ function reminderTimeToDate(settings: ReminderSettings): Date {
 
 export default function SettingsScreen() {
   const { colors, preference, setPreference } = useTheme();
+  const { user, signOut } = useAuth();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [reminder, setReminder] = useState<ReminderSettings | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
+
+  function handleSignOut() {
+    Alert.alert(
+      'ログアウト',
+      '本当にログアウトしますか？',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        { text: 'ログアウト', style: 'destructive', onPress: signOut },
+      ]
+    );
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -89,6 +102,27 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.sectionTitle}>アカウント</Text>
+      <View style={styles.card}>
+        <View style={[styles.option, styles.optionBorder]}>
+          <Text style={styles.optionEmoji}>👤</Text>
+          <View style={styles.userInfo}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.user_metadata?.full_name || user?.email || 'ユーザー'}
+            </Text>
+            {user?.email && (
+              <Text style={styles.userEmail} numberOfLines={1}>
+                {user.email}
+              </Text>
+            )}
+          </View>
+        </View>
+        <TouchableOpacity style={styles.option} onPress={handleSignOut}>
+          <Text style={styles.optionEmoji}>🚪</Text>
+          <Text style={styles.logoutLabel}>ログアウト</Text>
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.sectionTitle}>テーマ</Text>
       <View style={styles.card}>
         {themeOptions.map((option, index) => {
@@ -258,5 +292,23 @@ const createStyles = (colors: ThemeColors) =>
     footerText: {
       fontSize: 14,
       color: colors.textMuted,
+    },
+    userInfo: {
+      flex: 1,
+    },
+    userName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    userEmail: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    logoutLabel: {
+      flex: 1,
+      fontSize: 16,
+      color: '#E53935',
     },
   });

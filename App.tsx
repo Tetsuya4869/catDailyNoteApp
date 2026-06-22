@@ -21,8 +21,10 @@ import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
 import CatEditScreen from './src/screens/CatEditScreen';
+import LoginScreen from './src/screens/LoginScreen';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { CatProvider } from './src/contexts/CatContext';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
 import { spacing } from './src/constants/theme';
 
@@ -159,6 +161,7 @@ function MainTabs() {
 
 function AppNavigator() {
   const { colors, isDark } = useTheme();
+  const { user, loading } = useAuth();
 
   const navigationTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -183,37 +186,47 @@ function AppNavigator() {
           headerShadowVisible: false,
         }}
       >
-        <Stack.Screen
-          name="MainTabs"
-          component={MainTabs}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CatProfile"
-          component={CatProfileScreen}
-          options={{ title: '猫プロフィール' }}
-        />
-        <Stack.Screen
-          name="DiaryEntry"
-          component={DiaryEntryScreen}
-          options={({ route }) => ({
-            title: route.params?.id ? '日記を編集' : '新規投稿',
-            presentation: 'modal',
-          })}
-        />
-        <Stack.Screen
-          name="CatEdit"
-          component={CatEditScreen}
-          options={({ route }) => ({
-            title: route.params?.id ? '猫を編集' : '猫を追加',
-            presentation: 'modal',
-          })}
-        />
-        <Stack.Screen
-          name="Stats"
-          component={StatsScreen}
-          options={{ title: '統計' }}
-        />
+        {!user ? (
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        ) : (
+          <>
+            <Stack.Screen
+              name="MainTabs"
+              component={MainTabs}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="CatProfile"
+              component={CatProfileScreen}
+              options={{ title: '猫プロフィール' }}
+            />
+            <Stack.Screen
+              name="DiaryEntry"
+              component={DiaryEntryScreen}
+              options={({ route }) => ({
+                title: route.params?.id ? '日記を編集' : '新規投稿',
+                presentation: 'modal',
+              })}
+            />
+            <Stack.Screen
+              name="CatEdit"
+              component={CatEditScreen}
+              options={({ route }) => ({
+                title: route.params?.id ? '猫を編集' : '猫を追加',
+                presentation: 'modal',
+              })}
+            />
+            <Stack.Screen
+              name="Stats"
+              component={StatsScreen}
+              options={{ title: '統計' }}
+            />
+          </>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -222,9 +235,11 @@ function AppNavigator() {
 export default function App() {
   return (
     <ThemeProvider>
-      <CatProvider>
-        <AppNavigator />
-      </CatProvider>
+      <AuthProvider>
+        <CatProvider>
+          <AppNavigator />
+        </CatProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
