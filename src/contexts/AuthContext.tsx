@@ -11,6 +11,7 @@ import { Session, User } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import { supabase } from '../lib/supabase';
+import { isMigrationNeeded, migrateLocalData } from '../lib/migration';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -53,10 +54,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (user?.id) {
+      (async () => {
+        try {
+          const needsMigration = await isMigrationNeeded();
+          if (needsMigration) {
+            const result = await migrateLocalData(user.id);
+            if (!result.success && result.errors.length > 0) {
+              Alert.alert(
+                'データ移行',
+                `${result.errors.length}件のエラーがありました。一部のデータは後で再試行できます。`
+              );
+            }
+          }
+        } catch (err) {
+          console.error('Migration check failed:', err);
+        }
+      })();
+    }
+  }, [user?.id]);
+
   const signInWithGoogle = useCallback(async () => {
     try {
       const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: 'com.catdailynote.app',
+        scheme: 'catdailynote',
         path: 'auth/callback',
       });
 

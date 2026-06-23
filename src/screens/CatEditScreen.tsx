@@ -27,6 +27,7 @@ import {
 import { saveCat, getCatById } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
@@ -54,6 +55,7 @@ export default function CatEditScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { refreshCats } = useCats();
+  const { user } = useAuth();
   const editId = route.params?.id;
   const [name, setName] = useState('');
   const [color, setColor] = useState<CatColor>('orange');
@@ -99,6 +101,7 @@ export default function CatEditScreen({ navigation, route }: Props) {
       Alert.alert('エラー', '名前を入力してください');
       return;
     }
+    if (!user?.id) return;
 
     const cat: Cat = {
       id: editId || Date.now().toString(),
@@ -117,7 +120,7 @@ export default function CatEditScreen({ navigation, route }: Props) {
       }
     }
 
-    await saveCat(cat);
+    await saveCat(cat, user.id);
     await refreshCats();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     navigation.goBack();

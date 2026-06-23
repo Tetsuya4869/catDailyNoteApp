@@ -13,6 +13,7 @@ import { CatMood, moodEmojis, moodLabels, DiaryEntry } from '../types';
 import { getDiaryEntries, calculateStreak } from '../storage/diaryStorage';
 import { exportDiaryData, importDiaryData } from '../utils/export';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
@@ -20,6 +21,7 @@ const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
 export default function StatsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { user } = useAuth();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -27,12 +29,13 @@ export default function StatsScreen() {
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
-      const data = await getDiaryEntries();
+      if (!user?.id) return;
+      const data = await getDiaryEntries(user.id);
       if (!isActive()) return;
       setEntries(data);
       setLoading(false);
     },
-    []
+    [user?.id]
   );
 
   useFocusEffect(
@@ -46,6 +49,7 @@ export default function StatsScreen() {
   );
 
   async function handleExport() {
+    if (!user?.id) return;
     if (entries.length === 0) {
       Alert.alert('エクスポートできません', '日記がありません');
       return;
@@ -53,7 +57,7 @@ export default function StatsScreen() {
 
     setExporting(true);
     try {
-      await exportDiaryData();
+      await exportDiaryData(user.id);
     } catch {
       Alert.alert('エラー', 'エクスポートに失敗しました');
     } finally {
@@ -62,9 +66,10 @@ export default function StatsScreen() {
   }
 
   async function handleImport() {
+    if (!user?.id) return;
     setImporting(true);
     try {
-      const result = await importDiaryData();
+      const result = await importDiaryData(user.id);
       if (result.success) {
         Alert.alert(
           'インポート完了',

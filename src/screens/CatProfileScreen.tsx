@@ -35,6 +35,7 @@ import {
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
+import { useAuth } from '../contexts/AuthContext';
 import { formatCatAge } from '../utils/age';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
@@ -53,6 +54,7 @@ const albumCols = 3;
 export default function CatProfileScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { user } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'CatProfile'>>();
@@ -69,12 +71,13 @@ export default function CatProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!user?.id) return;
       let active = true;
       (async () => {
         const [all, healthRecords, weightSeries] = await Promise.all([
-          getDiaryEntries(),
-          getHealthRecordsByCat(catId),
-          getWeightSeries(catId),
+          getDiaryEntries(user.id),
+          getHealthRecordsByCat(catId, user.id),
+          getWeightSeries(catId, user.id),
         ]);
         if (!active) return;
         setEntries(
@@ -91,7 +94,7 @@ export default function CatProfileScreen() {
       return () => {
         active = false;
       };
-    }, [catId])
+    }, [catId, user?.id])
   );
 
   if (!cat) {

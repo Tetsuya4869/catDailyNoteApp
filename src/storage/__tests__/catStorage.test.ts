@@ -6,6 +6,29 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+jest.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    upsert: jest.fn().mockResolvedValue({ error: null }),
+    delete: jest.fn().mockReturnThis(),
+  },
+}));
+
+jest.mock('../../lib/syncService', () => ({
+  isOnline: jest.fn().mockResolvedValue(false),
+  catToDb: jest.fn(),
+  dbToCat: jest.fn(),
+}));
+
+jest.mock('../../lib/photoStorage', () => ({
+  uploadPhoto: jest.fn(),
+}));
+
+const TEST_USER_ID = 'test-user-123';
+
 function makeCat(overrides: Partial<Cat> = {}): Cat {
   return {
     id: '1',
@@ -22,40 +45,40 @@ beforeEach(async () => {
 
 describe('catStorage', () => {
   it('returns an empty array when no cats exist', async () => {
-    const cats = await getCats();
+    const cats = await getCats(TEST_USER_ID);
     expect(cats).toEqual([]);
   });
 
   it('saves a new cat and reads it back', async () => {
     const cat = makeCat({ id: 'a', name: 'タマ' });
-    await saveCat(cat);
+    await saveCat(cat, TEST_USER_ID);
 
-    const cats = await getCats();
+    const cats = await getCats(TEST_USER_ID);
     expect(cats).toHaveLength(1);
     expect(cats[0].name).toBe('タマ');
   });
 
   it('updates an existing cat in place', async () => {
-    await saveCat(makeCat({ id: 'a', name: '元の名前' }));
-    await saveCat(makeCat({ id: 'a', name: '新しい名前' }));
+    await saveCat(makeCat({ id: 'a', name: '元の名前' }), TEST_USER_ID);
+    await saveCat(makeCat({ id: 'a', name: '新しい名前' }), TEST_USER_ID);
 
-    const cats = await getCats();
+    const cats = await getCats(TEST_USER_ID);
     expect(cats).toHaveLength(1);
     expect(cats[0].name).toBe('新しい名前');
   });
 
   it('deletes a cat by id', async () => {
-    await saveCat(makeCat({ id: 'a' }));
-    await saveCat(makeCat({ id: 'b' }));
+    await saveCat(makeCat({ id: 'a' }), TEST_USER_ID);
+    await saveCat(makeCat({ id: 'b' }), TEST_USER_ID);
 
-    await deleteCat('a');
+    await deleteCat('a', TEST_USER_ID);
 
-    const cats = await getCats();
+    const cats = await getCats(TEST_USER_ID);
     expect(cats.map((c) => c.id)).toEqual(['b']);
   });
 
   it('finds a cat by id', async () => {
-    await saveCat(makeCat({ id: 'a', name: 'クロ' }));
+    await saveCat(makeCat({ id: 'a', name: 'クロ' }), TEST_USER_ID);
     const found = await getCatById('a');
     expect(found?.name).toBe('クロ');
   });

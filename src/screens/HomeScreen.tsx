@@ -19,6 +19,7 @@ import { getDiaryEntries, saveDiaryEntry } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
+import { useAuth } from '../contexts/AuthContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Section = {
@@ -30,6 +31,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { cats, selectedCatId } = useCats();
+  const { user } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -42,7 +44,8 @@ export default function HomeScreen() {
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
-      const data = await getDiaryEntries();
+      if (!user?.id) return;
+      const data = await getDiaryEntries(user.id);
       if (!isActive()) return;
       const sorted = [...data].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -50,7 +53,7 @@ export default function HomeScreen() {
       setEntries(sorted);
       setLoading(false);
     },
-    []
+    [user?.id]
   );
 
   useFocusEffect(
@@ -70,8 +73,9 @@ export default function HomeScreen() {
   }
 
   async function handleToggleFavorite(item: DiaryEntry) {
+    if (!user?.id) return;
     const updated = { ...item, favorite: !item.favorite };
-    await saveDiaryEntry(updated);
+    await saveDiaryEntry(updated, user.id);
     setEntries((prev) => prev.map((e) => (e.id === item.id ? updated : e)));
   }
 

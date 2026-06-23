@@ -14,6 +14,7 @@ import { Cat, catColorEmojis } from '../types';
 import { deleteCat } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { RootStackParamList } from '../navigation/types';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
@@ -23,6 +24,7 @@ export default function CatsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { cats, selectedCatId, setSelectedCatId, refreshCats } = useCats();
+  const { user } = useAuth();
 
   useFocusEffect(
     useCallback(() => {
@@ -35,6 +37,7 @@ export default function CatsScreen() {
   }
 
   function handleDelete(cat: Cat) {
+    if (!user?.id) return;
     Alert.alert(
       '削除確認',
       `${cat.name}を削除しますか？\n（関連する日記は残ります）`,
@@ -47,7 +50,7 @@ export default function CatsScreen() {
             if (selectedCatId === cat.id) {
               setSelectedCatId(null);
             }
-            await deleteCat(cat.id);
+            await deleteCat(cat.id, user.id);
             refreshCats();
           },
         },

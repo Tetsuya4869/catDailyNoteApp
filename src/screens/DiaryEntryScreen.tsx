@@ -27,6 +27,7 @@ import {
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
+import { useAuth } from '../contexts/AuthContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Props = {
@@ -40,6 +41,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { cats, selectedCatId } = useCats();
+  const { user } = useAuth();
   const editId = route.params?.id;
   const presetCatId = route.params?.catId;
   const [title, setTitle] = useState('');
@@ -106,6 +108,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       Alert.alert('エラー', 'タイトルを入力してください');
       return;
     }
+    if (!user?.id) return;
 
     const entry: DiaryEntry = {
       id: editId || Date.now().toString(),
@@ -119,13 +122,13 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       updatedAt: new Date().toISOString(),
     };
 
-    await saveDiaryEntry(entry);
+    await saveDiaryEntry(entry, user.id);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     navigation.goBack();
   }
 
   function handleDelete() {
-    if (!editId) return;
+    if (!editId || !user?.id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('削除確認', 'この日記を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
@@ -133,7 +136,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         text: '削除',
         style: 'destructive',
         onPress: async () => {
-          await deleteDiaryEntry(editId);
+          await deleteDiaryEntry(editId, user.id);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           navigation.goBack();
         },

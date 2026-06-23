@@ -24,6 +24,7 @@ import { DiaryEntry, moodEmojis } from '../types';
 import { getDiaryEntries } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -31,6 +32,7 @@ const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 export default function CalendarScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { user } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -39,12 +41,13 @@ export default function CalendarScreen() {
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
-      const data = await getDiaryEntries();
+      if (!user?.id) return;
+      const data = await getDiaryEntries(user.id);
       if (!isActive()) return;
       setEntries(data);
       setLoading(false);
     },
-    []
+    [user?.id]
   );
 
   useFocusEffect(

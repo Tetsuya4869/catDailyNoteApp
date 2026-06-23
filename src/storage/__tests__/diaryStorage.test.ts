@@ -12,6 +12,29 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
+jest.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    eq: jest.fn().mockReturnThis(),
+    order: jest.fn().mockReturnThis(),
+    upsert: jest.fn().mockResolvedValue({ error: null }),
+    delete: jest.fn().mockReturnThis(),
+  },
+}));
+
+jest.mock('../../lib/syncService', () => ({
+  isOnline: jest.fn().mockResolvedValue(false),
+  diaryToDb: jest.fn(),
+  dbToDiary: jest.fn(),
+}));
+
+jest.mock('../../lib/photoStorage', () => ({
+  uploadPhoto: jest.fn(),
+}));
+
+const TEST_USER_ID = 'test-user-123';
+
 function makeEntry(overrides: Partial<DiaryEntry> = {}): DiaryEntry {
   const now = new Date().toISOString();
   return {
@@ -32,32 +55,32 @@ beforeEach(async () => {
 
 describe('diaryStorage', () => {
   it('returns an empty array when no entries exist', async () => {
-    const entries = await getDiaryEntries();
+    const entries = await getDiaryEntries(TEST_USER_ID);
     expect(entries).toEqual([]);
   });
 
   it('saves a new entry and reads it back', async () => {
     const entry = makeEntry({ id: 'a', title: '初日記' });
-    await saveDiaryEntry(entry);
+    await saveDiaryEntry(entry, TEST_USER_ID);
 
-    const entries = await getDiaryEntries();
+    const entries = await getDiaryEntries(TEST_USER_ID);
     expect(entries).toHaveLength(1);
     expect(entries[0].title).toBe('初日記');
   });
 
   it('prepends newly created entries', async () => {
-    await saveDiaryEntry(makeEntry({ id: 'a', title: '1番目' }));
-    await saveDiaryEntry(makeEntry({ id: 'b', title: '2番目' }));
+    await saveDiaryEntry(makeEntry({ id: 'a', title: '1番目' }), TEST_USER_ID);
+    await saveDiaryEntry(makeEntry({ id: 'b', title: '2番目' }), TEST_USER_ID);
 
-    const entries = await getDiaryEntries();
+    const entries = await getDiaryEntries(TEST_USER_ID);
     expect(entries.map((e) => e.id)).toEqual(['b', 'a']);
   });
 
   it('updates an existing entry in place instead of duplicating', async () => {
-    await saveDiaryEntry(makeEntry({ id: 'a', title: '元のタイトル' }));
-    await saveDiaryEntry(makeEntry({ id: 'a', title: '更新後タイトル' }));
+    await saveDiaryEntry(makeEntry({ id: 'a', title: '元のタイトル' }), TEST_USER_ID);
+    await saveDiaryEntry(makeEntry({ id: 'a', title: '更新後タイトル' }), TEST_USER_ID);
 
-    const entries = await getDiaryEntries();
+    const entries = await getDiaryEntries(TEST_USER_ID);
     expect(entries).toHaveLength(1);
     expect(entries[0].title).toBe('更新後タイトル');
   });
@@ -67,25 +90,25 @@ describe('diaryStorage', () => {
       id: 'a',
       updatedAt: '2020-01-01T00:00:00.000Z',
     });
-    await saveDiaryEntry(original);
-    await saveDiaryEntry({ ...original, title: '変更' });
+    await saveDiaryEntry(original, TEST_USER_ID);
+    await saveDiaryEntry({ ...original, title: '変更' }, TEST_USER_ID);
 
-    const [entry] = await getDiaryEntries();
+    const [entry] = await getDiaryEntries(TEST_USER_ID);
     expect(entry.updatedAt).not.toBe('2020-01-01T00:00:00.000Z');
   });
 
   it('deletes an entry by id', async () => {
-    await saveDiaryEntry(makeEntry({ id: 'a' }));
-    await saveDiaryEntry(makeEntry({ id: 'b' }));
+    await saveDiaryEntry(makeEntry({ id: 'a' }), TEST_USER_ID);
+    await saveDiaryEntry(makeEntry({ id: 'b' }), TEST_USER_ID);
 
-    await deleteDiaryEntry('a');
+    await deleteDiaryEntry('a', TEST_USER_ID);
 
-    const entries = await getDiaryEntries();
+    const entries = await getDiaryEntries(TEST_USER_ID);
     expect(entries.map((e) => e.id)).toEqual(['b']);
   });
 
   it('finds an entry by id', async () => {
-    await saveDiaryEntry(makeEntry({ id: 'a', title: '探し物' }));
+    await saveDiaryEntry(makeEntry({ id: 'a', title: '探し物' }), TEST_USER_ID);
     const found = await getDiaryEntryById('a');
     expect(found?.title).toBe('探し物');
   });
@@ -125,7 +148,7 @@ describe('calculateStreak', () => {
     const entries = [
       makeEntry({ id: 'a', date: daysAgo(0) }),
       makeEntry({ id: 'b', date: daysAgo(1) }),
-      makeEntry({ id: 'c', date: daysAgo(3) }), // gap at day 2
+      makeEntry({ id: 'c', date: daysAgo(3) }),
     ];
     expect(calculateStreak(entries)).toBe(2);
   });

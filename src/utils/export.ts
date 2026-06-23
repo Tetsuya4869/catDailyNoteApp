@@ -8,8 +8,8 @@ import { format } from 'date-fns';
 
 const DIARY_STORAGE_KEY = '@cat_diary_entries';
 
-export async function exportDiaryData(): Promise<boolean> {
-  const entries = await getDiaryEntries();
+export async function exportDiaryData(userId: string): Promise<boolean> {
+  const entries = await getDiaryEntries(userId);
 
   if (entries.length === 0) {
     return false;
@@ -47,7 +47,7 @@ type ImportResult = {
   error?: string;
 };
 
-export async function importDiaryData(): Promise<ImportResult> {
+export async function importDiaryData(userId: string): Promise<ImportResult> {
   const result = await DocumentPicker.getDocumentAsync({
     type: 'application/json',
     copyToCacheDirectory: true,
@@ -74,7 +74,7 @@ export async function importDiaryData(): Promise<ImportResult> {
     return { success: false, imported: 0, skipped: 0, error: '日記データが見つかりません' };
   }
 
-  const existingEntries = await getDiaryEntries();
+  const existingEntries = await getDiaryEntries(userId);
   const existingIds = new Set(existingEntries.map((e) => e.id));
 
   let imported = 0;
