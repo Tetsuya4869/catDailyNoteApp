@@ -26,14 +26,26 @@ export default function StatsScreen() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
       if (!user?.id) return;
-      const data = await getDiaryEntries(user.id);
-      if (!isActive()) return;
-      setEntries(data);
-      setLoading(false);
+      try {
+        setError(null);
+        const data = await getDiaryEntries(user.id);
+        if (!isActive()) return;
+        setEntries(data);
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+        if (isActive()) {
+          setError('データの読み込みに失敗しました');
+        }
+      } finally {
+        if (isActive()) {
+          setLoading(false);
+        }
+      }
     },
     [user?.id]
   );
@@ -106,6 +118,23 @@ export default function StatsScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => {
+            setLoading(true);
+            loadEntries();
+          }}
+        >
+          <Text style={styles.retryButtonText}>再試行</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -206,6 +235,21 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: colors.background,
+    },
+    errorText: {
+      fontSize: 16,
+      color: colors.danger,
+      marginBottom: spacing.lg,
+    },
+    retryButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: borderRadius.md,
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
     },
     content: {
       padding: spacing.xl,
