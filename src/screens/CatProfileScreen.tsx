@@ -8,6 +8,7 @@ import {
   Image,
   FlatList,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import {
   useFocusEffect,
@@ -68,39 +69,72 @@ export default function CatProfileScreen() {
   const [weights, setWeights] = useState<{ date: string; weightKg: number }[]>(
     []
   );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setError(null);
+      const [all, healthRecords, weightSeries] = await Promise.all([
+        getDiaryEntries(user.id),
+        getHealthRecordsByCat(catId, user.id),
+        getWeightSeries(catId, user.id),
+      ]);
+      setEntries(
+        all
+          .filter((e) => e.catId === catId)
+          .sort(
+            (a, b) =>
+              new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+      );
+      setHealth(healthRecords);
+      setWeights(weightSeries);
+    } catch (err) {
+      console.error('Failed to load cat profile data:', err);
+      setError('データの読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [catId, user?.id]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!user?.id) return;
       let active = true;
-      (async () => {
-        const [all, healthRecords, weightSeries] = await Promise.all([
-          getDiaryEntries(user.id),
-          getHealthRecordsByCat(catId, user.id),
-          getWeightSeries(catId, user.id),
-        ]);
+      setLoading(true);
+      loadData().then(() => {
         if (!active) return;
-        setEntries(
-          all
-            .filter((e) => e.catId === catId)
-            .sort(
-              (a, b) =>
-                new Date(b.date).getTime() - new Date(a.date).getTime()
-            )
-        );
-        setHealth(healthRecords);
-        setWeights(weightSeries);
-      })();
+      });
       return () => {
         active = false;
       };
-    }, [catId, user?.id])
+    }, [loadData])
   );
 
   if (!cat) {
     return (
       <View style={styles.missing}>
         <Text style={styles.missingText}>猫が見つかりませんでした</Text>
+      </View>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.missing}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.missing}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+          <Text style={styles.retryButtonText}>再試行</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -360,6 +394,21 @@ const createStyles = (colors: ThemeColors) =>
     missingText: {
       fontSize: 16,
       color: colors.textSecondary,
+    },
+    errorText: {
+      fontSize: 16,
+      color: colors.danger,
+      marginBottom: spacing.lg,
+    },
+    retryButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: borderRadius.md,
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
     },
     header: {
       alignItems: 'center',
