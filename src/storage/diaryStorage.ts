@@ -8,7 +8,10 @@ import { DbDiaryEntry } from '../lib/database.types';
 const DIARY_STORAGE_KEY = '@cat_diary_entries';
 const PENDING_DIARY_OPS_KEY = '@cat_diary_pending_diary_ops';
 
+let diarySyncInProgress = false;
+
 type PendingOp = {
+  id: string;
   type: 'upsert' | 'delete';
   entry: DiaryEntry;
   timestamp: string;
@@ -24,11 +27,23 @@ async function setCachedEntries(entries: DiaryEntry[]): Promise<void> {
   await AsyncStorage.setItem(DIARY_STORAGE_KEY, JSON.stringify(entries));
 }
 
-async function addPendingOp(op: PendingOp): Promise<void> {
+function generateOpId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+async function addPendingOp(op: Omit<PendingOp, 'id'>): Promise<void> {
   const json = await AsyncStorage.getItem(PENDING_DIARY_OPS_KEY);
   const ops: PendingOp[] = json ? JSON.parse(json) : [];
   const filtered = ops.filter((o) => o.entry.id !== op.entry.id);
-  filtered.push(op);
+  filtered.push({ ...op, id: generateOpId() });
+  await AsyncStorage.setItem(PENDING_DIARY_OPS_KEY, JSON.stringify(filtered));
+}
+
+async function removePendingOpById(opId: string): Promise<void> {
+  const json = await AsyncStorage.getItem(PENDING_DIARY_OPS_KEY);
+  if (!json) return;
+  const ops: PendingOp[] = JSON.parse(json);
+  const filtered = ops.filter((o) => o.id !== opId);
   await AsyncStorage.setItem(PENDING_DIARY_OPS_KEY, JSON.stringify(filtered));
 }
 
@@ -142,33 +157,34 @@ export function calculateStreak(entries: DiaryEntry[]): number {
 }
 
 export async function syncPendingDiaryOps(userId: string): Promise<void> {
-  const json = await AsyncStorage.getItem(PENDING_DIARY_OPS_KEY);
-  if (!json) return;
+  if (diarySyncInProgress) return;
+  diarySyncInProgress = true;
 
-  const ops: PendingOp[] = JSON.parse(json);
-  const remaining: PendingOp[] = [];
+  try {
+    const json = await AsyncStorage.getItem(PENDING_DIARY_OPS_KEY);
+    if (!json) return;
 
-  for (const op of ops) {
-    try {
-      if (op.type === 'delete') {
-        await supabase.from('diary_entries').delete().eq('id', op.entry.id);
-      } else {
-        let photoPath: string | null = null;
-        if (op.entry.photoUri && op.entry.photoUri.startsWith('file://')) {
-          photoPath = await uploadPhoto(userId, 'diary', op.entry.id, op.entry.photoUri);
+    const ops: PendingOp[] = JSON.parse(json);
+
+    for (const op of ops) {
+      try {
+        if (op.type === 'delete') {
+          await supabase.from('diary_entries').delete().eq('id', op.entry.id);
+        } else {
+          let photoPath: string | null = null;
+          if (op.entry.photoUri && op.entry.photoUri.startsWith('file://')) {
+            photoPath = await uploadPhoto(userId, 'diary', op.entry.id, op.entry.photoUri);
+          }
+          const dbEntry = diaryToDb(op.entry, userId);
+          const insertData = photoPath ? { ...dbEntry, photo_path: photoPath } : dbEntry;
+          await supabase.from('diary_entries').upsert(insertData);
         }
-        const dbEntry = diaryToDb(op.entry, userId);
-        const insertData = photoPath ? { ...dbEntry, photo_path: photoPath } : dbEntry;
-        await supabase.from('diary_entries').upsert(insertData);
+        await removePendingOpById(op.id);
+      } catch (err) {
+        console.error('Sync failed for diary op:', op.id, err);
       }
-    } catch {
-      remaining.push(op);
     }
-  }
-
-  if (remaining.length > 0) {
-    await AsyncStorage.setItem(PENDING_DIARY_OPS_KEY, JSON.stringify(remaining));
-  } else {
-    await AsyncStorage.removeItem(PENDING_DIARY_OPS_KEY);
+  } finally {
+    diarySyncInProgress = false;
   }
 }

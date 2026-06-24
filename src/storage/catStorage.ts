@@ -8,7 +8,10 @@ import { DbCat } from '../lib/database.types';
 const CAT_STORAGE_KEY = '@cat_diary_cats';
 const PENDING_CAT_OPS_KEY = '@cat_diary_pending_cat_ops';
 
+let catSyncInProgress = false;
+
 type PendingOp = {
+  id: string;
   type: 'upsert' | 'delete';
   cat: Cat;
   timestamp: string;
@@ -24,11 +27,23 @@ async function setCachedCats(cats: Cat[]): Promise<void> {
   await AsyncStorage.setItem(CAT_STORAGE_KEY, JSON.stringify(cats));
 }
 
-async function addPendingOp(op: PendingOp): Promise<void> {
+function generateOpId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+async function addPendingOp(op: Omit<PendingOp, 'id'>): Promise<void> {
   const json = await AsyncStorage.getItem(PENDING_CAT_OPS_KEY);
   const ops: PendingOp[] = json ? JSON.parse(json) : [];
   const filtered = ops.filter((o) => o.cat.id !== op.cat.id);
-  filtered.push(op);
+  filtered.push({ ...op, id: generateOpId() });
+  await AsyncStorage.setItem(PENDING_CAT_OPS_KEY, JSON.stringify(filtered));
+}
+
+async function removePendingOpById(opId: string): Promise<void> {
+  const json = await AsyncStorage.getItem(PENDING_CAT_OPS_KEY);
+  if (!json) return;
+  const ops: PendingOp[] = JSON.parse(json);
+  const filtered = ops.filter((o) => o.id !== opId);
   await AsyncStorage.setItem(PENDING_CAT_OPS_KEY, JSON.stringify(filtered));
 }
 
@@ -119,33 +134,34 @@ export async function getCatById(id: string): Promise<Cat | null> {
 }
 
 export async function syncPendingCatOps(userId: string): Promise<void> {
-  const json = await AsyncStorage.getItem(PENDING_CAT_OPS_KEY);
-  if (!json) return;
+  if (catSyncInProgress) return;
+  catSyncInProgress = true;
 
-  const ops: PendingOp[] = JSON.parse(json);
-  const remaining: PendingOp[] = [];
+  try {
+    const json = await AsyncStorage.getItem(PENDING_CAT_OPS_KEY);
+    if (!json) return;
 
-  for (const op of ops) {
-    try {
-      if (op.type === 'delete') {
-        await supabase.from('cats').delete().eq('id', op.cat.id);
-      } else {
-        let photoPath: string | null = null;
-        if (op.cat.photoUri && op.cat.photoUri.startsWith('file://')) {
-          photoPath = await uploadPhoto(userId, 'cats', op.cat.id, op.cat.photoUri);
+    const ops: PendingOp[] = JSON.parse(json);
+
+    for (const op of ops) {
+      try {
+        if (op.type === 'delete') {
+          await supabase.from('cats').delete().eq('id', op.cat.id);
+        } else {
+          let photoPath: string | null = null;
+          if (op.cat.photoUri && op.cat.photoUri.startsWith('file://')) {
+            photoPath = await uploadPhoto(userId, 'cats', op.cat.id, op.cat.photoUri);
+          }
+          const dbCat = catToDb(op.cat, userId);
+          const insertData = photoPath ? { ...dbCat, photo_path: photoPath } : dbCat;
+          await supabase.from('cats').upsert(insertData);
         }
-        const dbCat = catToDb(op.cat, userId);
-        const insertData = photoPath ? { ...dbCat, photo_path: photoPath } : dbCat;
-        await supabase.from('cats').upsert(insertData);
+        await removePendingOpById(op.id);
+      } catch (err) {
+        console.error('Sync failed for cat op:', op.id, err);
       }
-    } catch {
-      remaining.push(op);
     }
-  }
-
-  if (remaining.length > 0) {
-    await AsyncStorage.setItem(PENDING_CAT_OPS_KEY, JSON.stringify(remaining));
-  } else {
-    await AsyncStorage.removeItem(PENDING_CAT_OPS_KEY);
+  } finally {
+    catSyncInProgress = false;
   }
 }

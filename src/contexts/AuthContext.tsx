@@ -15,6 +15,21 @@ import { isMigrationNeeded, migrateLocalData } from '../lib/migration';
 
 WebBrowser.maybeCompleteAuthSession();
 
+function parseOAuthFragment(url: string): { accessToken?: string; refreshToken?: string } {
+  try {
+    const hashIndex = url.indexOf('#');
+    if (hashIndex === -1) return {};
+    const fragment = url.substring(hashIndex + 1);
+    const params = new URLSearchParams(fragment);
+    return {
+      accessToken: params.get('access_token') ?? undefined,
+      refreshToken: params.get('refresh_token') ?? undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
 type AuthContextType = {
   user: User | null;
   session: Session | null;
@@ -45,9 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
       setLoading(false);
     });
 
@@ -102,15 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
 
         if (result.type === 'success') {
-          const url = result.url;
-          const params = new URLSearchParams(url.split('#')[1]);
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
+          const tokens = parseOAuthFragment(result.url);
+          if (tokens.accessToken && tokens.refreshToken) {
             await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
+              access_token: tokens.accessToken,
+              refresh_token: tokens.refreshToken,
             });
           }
         }

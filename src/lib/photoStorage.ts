@@ -4,6 +4,15 @@ import { supabase } from './supabase';
 
 export type PhotoEntityType = 'cats' | 'diary';
 
+const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+export class PhotoSizeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PhotoSizeError';
+  }
+}
+
 export async function uploadPhoto(
   userId: string,
   entityType: PhotoEntityType,
@@ -11,6 +20,16 @@ export async function uploadPhoto(
   localUri: string
 ): Promise<string | null> {
   try {
+    const fileInfo = await FileSystem.getInfoAsync(localUri);
+    if (!fileInfo.exists) {
+      console.error('Photo file does not exist:', localUri);
+      return null;
+    }
+
+    if (fileInfo.size && fileInfo.size > MAX_PHOTO_SIZE_BYTES) {
+      throw new PhotoSizeError('写真サイズが大きすぎます（5MB以下にしてください）');
+    }
+
     const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
     const timestamp = Date.now();
     const storagePath = `${userId}/${entityType}/${entityId}_${timestamp}.${ext}`;

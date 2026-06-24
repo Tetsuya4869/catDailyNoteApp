@@ -39,19 +39,31 @@ export default function HomeScreen() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const selectedCat = cats.find((c) => c.id === selectedCatId);
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
       if (!user?.id) return;
-      const data = await getDiaryEntries(user.id);
-      if (!isActive()) return;
-      const sorted = [...data].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      setEntries(sorted);
-      setLoading(false);
+      try {
+        setError(null);
+        const data = await getDiaryEntries(user.id);
+        if (!isActive()) return;
+        const sorted = [...data].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        setEntries(sorted);
+      } catch (err) {
+        console.error('Failed to load diary entries:', err);
+        if (isActive()) {
+          setError('日記の読み込みに失敗しました');
+        }
+      } finally {
+        if (isActive()) {
+          setLoading(false);
+        }
+      }
     },
     [user?.id]
   );
@@ -196,7 +208,16 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {showEmpty && (
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+            <Text style={styles.retryButtonText}>再試行</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {showEmpty && !error && (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyEmoji}>🐱</Text>
           <Text style={styles.emptyText}>まだ日記がありません</Text>
@@ -361,6 +382,28 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 14,
       color: colors.textSecondary,
       lineHeight: 20,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: spacing.xl,
+    },
+    errorText: {
+      fontSize: 16,
+      color: colors.danger,
+      textAlign: 'center',
+      marginBottom: spacing.lg,
+    },
+    retryButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: borderRadius.md,
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
     },
     emptyContainer: {
       flex: 1,

@@ -42,7 +42,16 @@ export function catToDb(cat: Cat, userId: string): Omit<DbCat, 'updated_at'> {
   };
 }
 
+function isValidDbCat(row: unknown): row is DbCat {
+  if (!row || typeof row !== 'object') return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.id === 'string' && typeof r.name === 'string' && typeof r.color === 'string';
+}
+
 export function dbToCat(db: DbCat): Cat {
+  if (!isValidDbCat(db)) {
+    throw new Error('Invalid cat data from database');
+  }
   return {
     id: db.id,
     userId: db.user_id,
@@ -72,7 +81,16 @@ export function diaryToDb(entry: DiaryEntry, userId: string): Omit<DbDiaryEntry,
   };
 }
 
+function isValidDbDiary(row: unknown): row is DbDiaryEntry {
+  if (!row || typeof row !== 'object') return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.id === 'string' && typeof r.title === 'string' && typeof r.mood === 'string';
+}
+
 export function dbToDiary(db: DbDiaryEntry): DiaryEntry {
+  if (!isValidDbDiary(db)) {
+    throw new Error('Invalid diary data from database');
+  }
   return {
     id: db.id,
     userId: db.user_id,
@@ -103,7 +121,16 @@ export function healthToDb(record: HealthRecord, userId: string): DbHealthRecord
   };
 }
 
+function isValidDbHealth(row: unknown): row is DbHealthRecord {
+  if (!row || typeof row !== 'object') return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.id === 'string' && typeof r.cat_id === 'string' && typeof r.type === 'string';
+}
+
 export function dbToHealth(db: DbHealthRecord): HealthRecord {
+  if (!isValidDbHealth(db)) {
+    throw new Error('Invalid health record data from database');
+  }
   return {
     id: db.id,
     userId: db.user_id,
@@ -131,7 +158,16 @@ export function appointmentToDb(appt: Appointment, userId: string): DbAppointmen
   };
 }
 
+function isValidDbAppointment(row: unknown): row is DbAppointment {
+  if (!row || typeof row !== 'object') return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.id === 'string' && typeof r.cat_id === 'string' && typeof r.title === 'string';
+}
+
 export function dbToAppointment(db: DbAppointment): Appointment {
+  if (!isValidDbAppointment(db)) {
+    throw new Error('Invalid appointment data from database');
+  }
   return {
     id: db.id,
     userId: db.user_id,

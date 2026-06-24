@@ -63,6 +63,8 @@ export default function CatEditScreen({ navigation, route }: Props) {
   const [birthDate, setBirthDate] = useState<string | undefined>();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (editId) {
@@ -103,27 +105,38 @@ export default function CatEditScreen({ navigation, route }: Props) {
     }
     if (!user?.id) return;
 
-    const cat: Cat = {
-      id: editId || Date.now().toString(),
-      name: name.trim(),
-      color,
-      gender,
-      birthDate,
-      photoUri,
-      createdAt: editId ? '' : new Date().toISOString(),
-    };
+    setSaving(true);
+    setError(null);
 
-    if (editId) {
-      const existing = await getCatById(editId);
-      if (existing) {
-        cat.createdAt = existing.createdAt;
+    try {
+      const cat: Cat = {
+        id: editId || Date.now().toString(),
+        name: name.trim(),
+        color,
+        gender,
+        birthDate,
+        photoUri,
+        createdAt: editId ? '' : new Date().toISOString(),
+      };
+
+      if (editId) {
+        const existing = await getCatById(editId);
+        if (existing) {
+          cat.createdAt = existing.createdAt;
+        }
       }
-    }
 
-    await saveCat(cat, user.id);
-    await refreshCats();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    navigation.goBack();
+      await saveCat(cat, user.id);
+      await refreshCats();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigation.goBack();
+    } catch (err) {
+      console.error('Failed to save cat:', err);
+      setError('保存に失敗しました');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -220,10 +233,18 @@ export default function CatEditScreen({ navigation, route }: Props) {
             }}
           />
         )}
+
+        {error && (
+          <Text style={styles.errorText}>{error}</Text>
+        )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>保存する</Text>
+      <TouchableOpacity
+        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+        onPress={handleSave}
+        disabled={saving}
+      >
+        <Text style={styles.saveButtonText}>{saving ? '保存中...' : '保存する'}</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -350,12 +371,21 @@ const createStyles = (colors: ThemeColors) =>
       marginTop: -spacing.lg,
       marginBottom: spacing.xxl,
     },
+    errorText: {
+      color: colors.danger,
+      fontSize: 14,
+      textAlign: 'center',
+      marginBottom: spacing.lg,
+    },
     saveButton: {
       backgroundColor: colors.primary,
       margin: spacing.xl,
       padding: spacing.lg,
       borderRadius: borderRadius.md,
       alignItems: 'center',
+    },
+    saveButtonDisabled: {
+      opacity: 0.6,
     },
     saveButtonText: {
       color: '#FFFFFF',

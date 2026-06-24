@@ -54,6 +54,8 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [createdAt, setCreatedAt] = useState<string | undefined>();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (editId) {
@@ -110,21 +112,32 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     }
     if (!user?.id) return;
 
-    const entry: DiaryEntry = {
-      id: editId || Date.now().toString(),
-      catId,
-      date: date.toISOString(),
-      title: title.trim(),
-      content: content.trim(),
-      mood,
-      photoUri,
-      createdAt: createdAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    setSaving(true);
+    setError(null);
 
-    await saveDiaryEntry(entry, user.id);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    navigation.goBack();
+    try {
+      const entry: DiaryEntry = {
+        id: editId || Date.now().toString(),
+        catId,
+        date: date.toISOString(),
+        title: title.trim(),
+        content: content.trim(),
+        mood,
+        photoUri,
+        createdAt: createdAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await saveDiaryEntry(entry, user.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      navigation.goBack();
+    } catch (err) {
+      console.error('Failed to save diary entry:', err);
+      setError('保存に失敗しました');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleDelete() {
@@ -265,6 +278,10 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
           textAlignVertical="top"
         />
 
+        {error && (
+          <Text style={styles.errorText}>{error}</Text>
+        )}
+
         {editId && (
           <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
             <Text style={styles.deleteButtonText}>🗑 この日記を削除</Text>
@@ -272,8 +289,12 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Text style={styles.saveButtonText}>保存する</Text>
+      <TouchableOpacity
+        style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+        onPress={handleSave}
+        disabled={saving}
+      >
+        <Text style={styles.saveButtonText}>{saving ? '保存中...' : '保存する'}</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -451,12 +472,21 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 14,
       fontWeight: 'bold',
     },
+    errorText: {
+      color: colors.danger,
+      fontSize: 14,
+      textAlign: 'center',
+      marginBottom: spacing.lg,
+    },
     saveButton: {
       backgroundColor: colors.primary,
       margin: spacing.xl,
       padding: spacing.lg,
       borderRadius: borderRadius.md,
       alignItems: 'center',
+    },
+    saveButtonDisabled: {
+      opacity: 0.6,
     },
     saveButtonText: {
       color: '#FFFFFF',

@@ -112,7 +112,9 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
       }
     }
 
-    await AsyncStorage.setItem(MIGRATION_DONE_KEY, 'true');
+    if (errors.length === 0) {
+      await AsyncStorage.setItem(MIGRATION_DONE_KEY, 'true');
+    }
 
     return { success: errors.length === 0, migrated, errors };
   } catch (err) {

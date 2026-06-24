@@ -9,13 +9,21 @@ const APPOINTMENT_STORAGE_KEY = '@cat_diary_appointments';
 const PENDING_HEALTH_OPS_KEY = '@cat_diary_pending_health_ops';
 const PENDING_APPT_OPS_KEY = '@cat_diary_pending_appt_ops';
 
+let healthSyncInProgress = false;
+
+function generateOpId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 type HealthPendingOp = {
+  id: string;
   type: 'upsert' | 'delete';
   record: HealthRecord;
   timestamp: string;
 };
 
 type ApptPendingOp = {
+  id: string;
   type: 'upsert' | 'delete';
   appointment: Appointment;
   timestamp: string;
@@ -50,19 +58,35 @@ async function setCachedAppointments(appointments: Appointment[]): Promise<void>
   await AsyncStorage.setItem(APPOINTMENT_STORAGE_KEY, JSON.stringify(appointments));
 }
 
-async function addHealthPendingOp(op: HealthPendingOp): Promise<void> {
+async function addHealthPendingOp(op: Omit<HealthPendingOp, 'id'>): Promise<void> {
   const json = await AsyncStorage.getItem(PENDING_HEALTH_OPS_KEY);
   const ops: HealthPendingOp[] = json ? JSON.parse(json) : [];
   const filtered = ops.filter((o) => o.record.id !== op.record.id);
-  filtered.push(op);
+  filtered.push({ ...op, id: generateOpId() });
   await AsyncStorage.setItem(PENDING_HEALTH_OPS_KEY, JSON.stringify(filtered));
 }
 
-async function addApptPendingOp(op: ApptPendingOp): Promise<void> {
+async function removeHealthPendingOpById(opId: string): Promise<void> {
+  const json = await AsyncStorage.getItem(PENDING_HEALTH_OPS_KEY);
+  if (!json) return;
+  const ops: HealthPendingOp[] = JSON.parse(json);
+  const filtered = ops.filter((o) => o.id !== opId);
+  await AsyncStorage.setItem(PENDING_HEALTH_OPS_KEY, JSON.stringify(filtered));
+}
+
+async function addApptPendingOp(op: Omit<ApptPendingOp, 'id'>): Promise<void> {
   const json = await AsyncStorage.getItem(PENDING_APPT_OPS_KEY);
   const ops: ApptPendingOp[] = json ? JSON.parse(json) : [];
   const filtered = ops.filter((o) => o.appointment.id !== op.appointment.id);
-  filtered.push(op);
+  filtered.push({ ...op, id: generateOpId() });
+  await AsyncStorage.setItem(PENDING_APPT_OPS_KEY, JSON.stringify(filtered));
+}
+
+async function removeApptPendingOpById(opId: string): Promise<void> {
+  const json = await AsyncStorage.getItem(PENDING_APPT_OPS_KEY);
+  if (!json) return;
+  const ops: ApptPendingOp[] = JSON.parse(json);
+  const filtered = ops.filter((o) => o.id !== opId);
   await AsyncStorage.setItem(PENDING_APPT_OPS_KEY, JSON.stringify(filtered));
 }
 
@@ -247,53 +271,48 @@ export async function deleteAppointment(id: string, userId: string): Promise<voi
 }
 
 export async function syncPendingHealthOps(userId: string): Promise<void> {
-  const healthJson = await AsyncStorage.getItem(PENDING_HEALTH_OPS_KEY);
-  if (healthJson) {
-    const ops: HealthPendingOp[] = JSON.parse(healthJson);
-    const remaining: HealthPendingOp[] = [];
+  if (healthSyncInProgress) return;
+  healthSyncInProgress = true;
 
-    for (const op of ops) {
-      try {
-        if (op.type === 'delete') {
-          await supabase.from('health_records').delete().eq('id', op.record.id);
-        } else {
-          const dbRecord = healthToDb(op.record, userId);
-          await supabase.from('health_records').upsert(dbRecord);
+  try {
+    const healthJson = await AsyncStorage.getItem(PENDING_HEALTH_OPS_KEY);
+    if (healthJson) {
+      const ops: HealthPendingOp[] = JSON.parse(healthJson);
+
+      for (const op of ops) {
+        try {
+          if (op.type === 'delete') {
+            await supabase.from('health_records').delete().eq('id', op.record.id);
+          } else {
+            const dbRecord = healthToDb(op.record, userId);
+            await supabase.from('health_records').upsert(dbRecord);
+          }
+          await removeHealthPendingOpById(op.id);
+        } catch (err) {
+          console.error('Sync failed for health op:', op.id, err);
         }
-      } catch {
-        remaining.push(op);
       }
     }
 
-    if (remaining.length > 0) {
-      await AsyncStorage.setItem(PENDING_HEALTH_OPS_KEY, JSON.stringify(remaining));
-    } else {
-      await AsyncStorage.removeItem(PENDING_HEALTH_OPS_KEY);
-    }
-  }
+    const apptJson = await AsyncStorage.getItem(PENDING_APPT_OPS_KEY);
+    if (apptJson) {
+      const ops: ApptPendingOp[] = JSON.parse(apptJson);
 
-  const apptJson = await AsyncStorage.getItem(PENDING_APPT_OPS_KEY);
-  if (apptJson) {
-    const ops: ApptPendingOp[] = JSON.parse(apptJson);
-    const remaining: ApptPendingOp[] = [];
-
-    for (const op of ops) {
-      try {
-        if (op.type === 'delete') {
-          await supabase.from('appointments').delete().eq('id', op.appointment.id);
-        } else {
-          const dbAppt = appointmentToDb(op.appointment, userId);
-          await supabase.from('appointments').upsert(dbAppt);
+      for (const op of ops) {
+        try {
+          if (op.type === 'delete') {
+            await supabase.from('appointments').delete().eq('id', op.appointment.id);
+          } else {
+            const dbAppt = appointmentToDb(op.appointment, userId);
+            await supabase.from('appointments').upsert(dbAppt);
+          }
+          await removeApptPendingOpById(op.id);
+        } catch (err) {
+          console.error('Sync failed for appointment op:', op.id, err);
         }
-      } catch {
-        remaining.push(op);
       }
     }
-
-    if (remaining.length > 0) {
-      await AsyncStorage.setItem(PENDING_APPT_OPS_KEY, JSON.stringify(remaining));
-    } else {
-      await AsyncStorage.removeItem(PENDING_APPT_OPS_KEY);
-    }
+  } finally {
+    healthSyncInProgress = false;
   }
 }

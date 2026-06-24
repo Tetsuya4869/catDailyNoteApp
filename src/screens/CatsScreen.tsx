@@ -47,11 +47,16 @@ export default function CatsScreen() {
           text: '削除',
           style: 'destructive',
           onPress: async () => {
-            if (selectedCatId === cat.id) {
-              setSelectedCatId(null);
+            try {
+              if (selectedCatId === cat.id) {
+                setSelectedCatId(null);
+              }
+              await deleteCat(cat.id, user.id);
+              refreshCats();
+            } catch (err) {
+              console.error('Failed to delete cat:', err);
+              Alert.alert('エラー', '削除に失敗しました');
             }
-            await deleteCat(cat.id, user.id);
-            refreshCats();
           },
         },
       ]
