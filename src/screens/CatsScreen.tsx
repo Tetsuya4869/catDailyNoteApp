@@ -11,10 +11,11 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Cat, catColorEmojis } from '../types';
-import { deleteCat } from '../storage/catStorage';
+import { deleteCat, saveCat } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSnackbar } from '../contexts/SnackbarContext';
 import { RootStackParamList } from '../navigation/types';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
@@ -25,6 +26,7 @@ export default function CatsScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { cats, selectedCatId, setSelectedCatId, refreshCats } = useCats();
   const { user } = useAuth();
+  const { showSnackbar } = useSnackbar();
 
   useFocusEffect(
     useCallback(() => {
@@ -53,6 +55,18 @@ export default function CatsScreen() {
               }
               await deleteCat(cat.id, user.id);
               refreshCats();
+              showSnackbar({
+                message: `${cat.name}を削除しました`,
+                actionLabel: '元に戻す',
+                onAction: async () => {
+                  try {
+                    await saveCat(cat, user.id);
+                    refreshCats();
+                  } catch (err) {
+                    console.error('Failed to undo cat delete:', err);
+                  }
+                },
+              });
             } catch (err) {
               console.error('Failed to delete cat:', err);
               Alert.alert('エラー', '削除に失敗しました');
@@ -69,6 +83,9 @@ export default function CatsScreen() {
         style={styles.card}
         onPress={() => handleOpen(item)}
         onLongPress={() => handleDelete(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.name}のプロフィールを開く`}
+        accessibilityHint="長押しで削除できます"
       >
         {item.photoUri ? (
           <Image source={{ uri: item.photoUri }} style={styles.photo} />
@@ -114,6 +131,8 @@ export default function CatsScreen() {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('CatEdit', {})}
+        accessibilityRole="button"
+        accessibilityLabel="猫を追加"
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>

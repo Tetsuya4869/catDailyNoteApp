@@ -3,7 +3,7 @@ export type RootStackParamList = {
   Login: undefined;
   MainTabs: undefined;
   CatProfile: { catId: string };
-  DiaryEntry: { id?: string; catId?: string };
+  DiaryEntry: { id?: string; catId?: string; date?: string };
   NewPost: undefined; // 中央FAB用ダミー（tabBarButtonで横取り）
   CatEdit: { id?: string };
   Stats: undefined;

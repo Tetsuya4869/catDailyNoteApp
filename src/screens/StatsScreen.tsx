@@ -7,13 +7,21 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { CatMood, moodEmojis, moodLabels, DiaryEntry } from '../types';
+import {
+  CatMood,
+  moodEmojis,
+  moodLabels,
+  DiaryEntry,
+  catColorEmojis,
+} from '../types';
 import { getDiaryEntries, calculateStreak } from '../storage/diaryStorage';
 import { exportDiaryData, importDiaryData } from '../utils/export';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCats } from '../contexts/CatContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
@@ -22,11 +30,20 @@ export default function StatsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
+  const { cats } = useCats();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statsCatId, setStatsCatId] = useState<string | null>(null);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadEntries();
+    setRefreshing(false);
+  }
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
@@ -98,17 +115,23 @@ export default function StatsScreen() {
     }
   }
 
+  const displayEntries = useMemo(
+    () =>
+      statsCatId ? entries.filter((e) => e.catId === statsCatId) : entries,
+    [entries, statsCatId]
+  );
+
   const moodCounts = moods.reduce(
     (acc, mood) => {
-      acc[mood] = entries.filter((e) => e.mood === mood).length;
+      acc[mood] = displayEntries.filter((e) => e.mood === mood).length;
       return acc;
     },
     {} as Record<CatMood, number>
   );
 
-  const totalEntries = entries.length;
-  const streakDays = calculateStreak(entries);
-  const entriesWithPhotos = entries.filter((e) => e.photoUri).length;
+  const totalEntries = displayEntries.length;
+  const streakDays = calculateStreak(displayEntries);
+  const entriesWithPhotos = displayEntries.filter((e) => e.photoUri).length;
   const mostCommonMood =
     totalEntries > 0
       ? moods.reduce((a, b) => (moodCounts[a] >= moodCounts[b] ? a : b))
@@ -140,7 +163,56 @@ export default function StatsScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+        />
+      }
+    >
+      {cats.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipContainer}
+        >
+          <TouchableOpacity
+            style={[styles.chip, !statsCatId && styles.chipActive]}
+            onPress={() => setStatsCatId(null)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !statsCatId }}
+            accessibilityLabel="すべての猫の統計"
+          >
+            <Text style={[styles.chipText, !statsCatId && styles.chipTextActive]}>
+              🐾 すべて
+            </Text>
+          </TouchableOpacity>
+          {cats.map((cat) => {
+            const active = statsCatId === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setStatsCatId(active ? null : cat.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${cat.name}の統計`}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {catColorEmojis[cat.color]} {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       <View style={styles.summaryCard}>
         <Text style={styles.summaryEmoji}>📊</Text>
         <Text style={styles.summaryTitle}>日記の統計</Text>
@@ -200,6 +272,9 @@ export default function StatsScreen() {
           style={[styles.actionButton, exporting && styles.actionButtonDisabled]}
           onPress={handleExport}
           disabled={exporting}
+          accessibilityRole="button"
+          accessibilityLabel="日記データをエクスポート"
+          accessibilityState={{ disabled: exporting }}
         >
           {exporting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -212,6 +287,9 @@ export default function StatsScreen() {
           style={[styles.actionButton, styles.importButton, importing && styles.actionButtonDisabled]}
           onPress={handleImport}
           disabled={importing}
+          accessibilityRole="button"
+          accessibilityLabel="日記データをインポート"
+          accessibilityState={{ disabled: importing }}
         >
           {importing ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -235,6 +313,34 @@ const createStyles = (colors: ThemeColors) =>
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: colors.background,
+    },
+    chipScroll: {
+      marginBottom: spacing.lg,
+    },
+    chipContainer: {
+      gap: spacing.sm,
+      alignItems: 'center',
+    },
+    chip: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    chipTextActive: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
     },
     errorText: {
       fontSize: 16,

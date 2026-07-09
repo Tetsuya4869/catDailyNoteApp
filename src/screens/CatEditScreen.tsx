@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -24,10 +25,12 @@ import {
   catColorLabels,
   catGenderSymbols,
 } from '../types';
-import { saveCat, getCatById } from '../storage/catStorage';
+import { saveCat, getCatById, deleteCat } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSnackbar } from '../contexts/SnackbarContext';
+import { resizeImage } from '../utils/image';
 import { RootStackParamList } from '../navigation/types';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
@@ -54,8 +57,9 @@ function formatDate(iso?: string): string {
 export default function CatEditScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { refreshCats } = useCats();
+  const { refreshCats, selectedCatId, setSelectedCatId } = useCats();
   const { user } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const editId = route.params?.id;
   const [name, setName] = useState('');
   const [color, setColor] = useState<CatColor>('orange');
@@ -65,23 +69,125 @@ export default function CatEditScreen({ navigation, route }: Props) {
   const [photoUri, setPhotoUri] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(!!editId);
+  const [loadError, setLoadError] = useState(false);
+
+  // 未保存変更の検知用。保存/削除完了後は破棄確認をスキップする。
+  const initialSnapshot = useRef<string>('');
+  const skipDiscardGuard = useRef(false);
+
+  const serialize = useCallback(
+    () => JSON.stringify({ name, color, gender, birthDate, photoUri }),
+    [name, color, gender, birthDate, photoUri]
+  );
 
   useEffect(() => {
     if (editId) {
       loadCat();
+    } else {
+      initialSnapshot.current = JSON.stringify({
+        name: '',
+        color: 'orange',
+        gender: 'unknown',
+        birthDate: undefined,
+        photoUri: undefined,
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
 
   async function loadCat() {
     if (!editId) return;
-    const cat = await getCatById(editId);
-    if (cat) {
+    try {
+      setLoadError(false);
+      const cat = await getCatById(editId);
+      if (!cat) {
+        setLoadError(true);
+        return;
+      }
       setName(cat.name);
       setColor(cat.color);
       setGender(cat.gender ?? 'unknown');
       setBirthDate(cat.birthDate);
       setPhotoUri(cat.photoUri);
+      initialSnapshot.current = JSON.stringify({
+        name: cat.name,
+        color: cat.color,
+        gender: cat.gender ?? 'unknown',
+        birthDate: cat.birthDate,
+        photoUri: cat.photoUri,
+      });
+    } catch (err) {
+      console.error('Failed to load cat:', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  // 未保存の変更がある状態で画面を離れようとしたら確認する
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const isDirty = serialize() !== initialSnapshot.current;
+      if (!isDirty || skipDiscardGuard.current || loadError) return;
+      e.preventDefault();
+      Alert.alert('変更を破棄しますか？', '編集中の内容は保存されません', [
+        { text: '編集を続ける', style: 'cancel' },
+        {
+          text: '破棄',
+          style: 'destructive',
+          onPress: () => navigation.dispatch(e.data.action),
+        },
+      ]);
+    });
+    return unsubscribe;
+  }, [navigation, serialize, loadError]);
+
+  function handleDelete() {
+    if (!editId || !user?.id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      '削除確認',
+      `${name || 'この猫'}を削除しますか？\n（関連する日記は残ります）`,
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 元に戻せるよう削除前の完全なデータを取得
+              const snapshot = await getCatById(editId);
+              if (selectedCatId === editId) {
+                setSelectedCatId(null);
+              }
+              await deleteCat(editId, user.id);
+              await refreshCats();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              skipDiscardGuard.current = true;
+              navigation.goBack();
+              if (snapshot) {
+                showSnackbar({
+                  message: `${snapshot.name}を削除しました`,
+                  actionLabel: '元に戻す',
+                  onAction: async () => {
+                    try {
+                      await saveCat(snapshot, user.id);
+                      await refreshCats();
+                    } catch (err) {
+                      console.error('Failed to undo cat delete:', err);
+                    }
+                  },
+                });
+              }
+            } catch (err) {
+              console.error('Failed to delete cat:', err);
+              Alert.alert('エラー', '削除に失敗しました');
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function pickImage() {
@@ -93,7 +199,8 @@ export default function CatEditScreen({ navigation, route }: Props) {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      const resized = await resizeImage(result.assets[0].uri);
+      setPhotoUri(resized);
     }
   }
 
@@ -129,6 +236,7 @@ export default function CatEditScreen({ navigation, route }: Props) {
       await saveCat(cat, user.id);
       await refreshCats();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      skipDiscardGuard.current = true;
       navigation.goBack();
     } catch (err) {
       console.error('Failed to save cat:', err);
@@ -137,6 +245,31 @@ export default function CatEditScreen({ navigation, route }: Props) {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.loadErrorEmoji}>😿</Text>
+        <Text style={styles.loadErrorText}>猫の情報を読み込めませんでした</Text>
+        <TouchableOpacity
+          style={styles.loadErrorButton}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="前の画面に戻る"
+        >
+          <Text style={styles.loadErrorButtonText}>戻る</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
@@ -237,12 +370,26 @@ export default function CatEditScreen({ navigation, route }: Props) {
         {error && (
           <Text style={styles.errorText}>{error}</Text>
         )}
+
+        {editId && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            accessibilityRole="button"
+            accessibilityLabel="この猫を削除"
+          >
+            <Text style={styles.deleteButtonText}>🗑 この猫を削除</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <TouchableOpacity
         style={[styles.saveButton, saving && styles.saveButtonDisabled]}
         onPress={handleSave}
         disabled={saving}
+        accessibilityRole="button"
+        accessibilityLabel="猫の情報を保存する"
+        accessibilityState={{ disabled: saving }}
       >
         <Text style={styles.saveButtonText}>{saving ? '保存中...' : '保存する'}</Text>
       </TouchableOpacity>
@@ -255,6 +402,33 @@ const createStyles = (colors: ThemeColors) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    centered: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      padding: spacing.xl,
+    },
+    loadErrorEmoji: {
+      fontSize: 56,
+      marginBottom: spacing.lg,
+    },
+    loadErrorText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: spacing.xl,
+    },
+    loadErrorButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xxl,
+      borderRadius: borderRadius.md,
+    },
+    loadErrorButtonText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+      fontSize: 16,
     },
     scrollView: {
       flex: 1,
@@ -376,6 +550,20 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 14,
       textAlign: 'center',
       marginBottom: spacing.lg,
+    },
+    deleteButton: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      padding: 14,
+      borderRadius: borderRadius.md,
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    deleteButtonText: {
+      color: colors.danger,
+      fontSize: 14,
+      fontWeight: 'bold',
     },
     saveButton: {
       backgroundColor: colors.primary,

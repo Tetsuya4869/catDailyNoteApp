@@ -169,6 +169,8 @@ export default function CatProfileScreen() {
         <TouchableOpacity
           style={styles.editLink}
           onPress={() => navigation.navigate('CatEdit', { id: cat.id })}
+          accessibilityRole="button"
+          accessibilityLabel="基本情報を編集"
         >
           <Text style={styles.editLinkText}>基本情報を編集</Text>
         </TouchableOpacity>
@@ -186,6 +188,9 @@ export default function CatProfileScreen() {
               key={s.key}
               style={[styles.segment, active && styles.segmentActive]}
               onPress={() => setSegment(s.key)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={s.label}
             >
               <Text
                 style={[
@@ -349,6 +354,8 @@ export default function CatProfileScreen() {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('DiaryEntry', { catId: cat.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`${cat.name}の日記を書く`}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>

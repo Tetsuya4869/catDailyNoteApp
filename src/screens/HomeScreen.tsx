@@ -9,12 +9,14 @@ import {
   TextInput,
   RefreshControl,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as Haptics from 'expo-haptics';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { DiaryEntry, moodEmojis } from '../types';
+import { DiaryEntry, moodEmojis, catColorEmojis } from '../types';
 import { getDiaryEntries, saveDiaryEntry } from '../storage/diaryStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,7 +32,7 @@ type Section = {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const { cats, selectedCatId } = useCats();
+  const { cats, selectedCatId, setSelectedCatId } = useCats();
   const { user } = useAuth();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -40,8 +42,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const selectedCat = cats.find((c) => c.id === selectedCatId);
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
@@ -87,8 +87,17 @@ export default function HomeScreen() {
   async function handleToggleFavorite(item: DiaryEntry) {
     if (!user?.id) return;
     const updated = { ...item, favorite: !item.favorite };
-    await saveDiaryEntry(updated, user.id);
+    // 楽観更新: 先に UI を反映
     setEntries((prev) => prev.map((e) => (e.id === item.id ? updated : e)));
+    Haptics.selectionAsync();
+    try {
+      await saveDiaryEntry(updated, user.id);
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      // 失敗したら元に戻す
+      setEntries((prev) => prev.map((e) => (e.id === item.id ? item : e)));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   }
 
   const filteredEntries = useMemo(() => {
@@ -140,6 +149,11 @@ export default function HomeScreen() {
               <TouchableOpacity
                 onPress={() => handleToggleFavorite(item)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: !!item.favorite }}
+                accessibilityLabel={
+                  item.favorite ? 'お気に入りを解除' : 'お気に入りに追加'
+                }
               >
                 <Text style={styles.star}>{item.favorite ? '⭐' : '☆'}</Text>
               </TouchableOpacity>
@@ -192,6 +206,9 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={[styles.favoriteFilter, favoritesOnly && styles.favoriteFilterActive]}
             onPress={() => setFavoritesOnly((v) => !v)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: favoritesOnly }}
+            accessibilityLabel="お気に入りのみ表示"
           >
             <Text style={styles.favoriteFilterText}>
               {favoritesOnly ? '⭐' : '☆'}
@@ -200,12 +217,44 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {selectedCat && (
-        <View style={styles.filterBadge}>
-          <Text style={styles.filterBadgeText}>
-            🐱 {selectedCat.name}の日記を表示中
-          </Text>
-        </View>
+      {cats.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipContainer}
+        >
+          <TouchableOpacity
+            style={[styles.chip, !selectedCatId && styles.chipActive]}
+            onPress={() => setSelectedCatId(null)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !selectedCatId }}
+            accessibilityLabel="すべての猫の日記を表示"
+          >
+            <Text
+              style={[styles.chipText, !selectedCatId && styles.chipTextActive]}
+            >
+              🐾 すべて
+            </Text>
+          </TouchableOpacity>
+          {cats.map((cat) => {
+            const active = selectedCatId === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setSelectedCatId(active ? null : cat.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${cat.name}の日記を表示`}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {catColorEmojis[cat.color]} {cat.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       )}
 
       {error && (
@@ -254,6 +303,8 @@ export default function HomeScreen() {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('DiaryEntry', {})}
+        accessibilityRole="button"
+        accessibilityLabel="新しい日記を書く"
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
@@ -300,18 +351,34 @@ const createStyles = (colors: ThemeColors) =>
     favoriteFilterText: {
       fontSize: 22,
     },
-    filterBadge: {
-      backgroundColor: colors.primary,
-      marginHorizontal: spacing.lg,
+    chipScroll: {
       marginTop: spacing.sm,
+      maxHeight: 44,
+    },
+    chipContainer: {
+      paddingHorizontal: spacing.lg,
+      gap: spacing.sm,
+      alignItems: 'center',
+    },
+    chip: {
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
-      borderRadius: borderRadius.md,
-      alignSelf: 'flex-start',
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
-    filterBadgeText: {
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    chipTextActive: {
       color: '#FFFFFF',
-      fontSize: 12,
       fontWeight: 'bold',
     },
     list: {

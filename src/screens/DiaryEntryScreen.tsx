@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -28,6 +29,8 @@ import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useSnackbar } from '../contexts/SnackbarContext';
+import { resizeImage } from '../utils/image';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 type Props = {
@@ -42,8 +45,10 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { cats, selectedCatId } = useCats();
   const { user } = useAuth();
+  const { showSnackbar } = useSnackbar();
   const editId = route.params?.id;
   const presetCatId = route.params?.catId;
+  const presetDate = route.params?.date;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [mood, setMood] = useState<CatMood>('happy');
@@ -51,22 +56,59 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     presetCatId || selectedCatId || undefined
   );
   const [photoUri, setPhotoUri] = useState<string | undefined>();
-  const [date, setDate] = useState(new Date());
+  const [date, setDate] = useState(() =>
+    presetDate ? new Date(presetDate) : new Date()
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [createdAt, setCreatedAt] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(!!editId);
+  const [loadError, setLoadError] = useState(false);
+
+  // 未保存変更の検知用。保存/削除完了後は破棄確認をスキップする。
+  const initialSnapshot = useRef<string>('');
+  const skipDiscardGuard = useRef(false);
+
+  const serialize = useCallback(
+    () =>
+      JSON.stringify({
+        title,
+        content,
+        mood,
+        catId,
+        photoUri,
+        date: date.toISOString(),
+      }),
+    [title, content, mood, catId, photoUri, date]
+  );
 
   useEffect(() => {
     if (editId) {
       loadEntry();
+    } else {
+      // 新規作成: 初期状態をスナップショットとして記録
+      initialSnapshot.current = JSON.stringify({
+        title: '',
+        content: '',
+        mood: 'happy',
+        catId: presetCatId || selectedCatId || undefined,
+        photoUri: undefined,
+        date: date.toISOString(),
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
 
   async function loadEntry() {
     if (!editId) return;
-    const entry = await getDiaryEntryById(editId);
-    if (entry) {
+    try {
+      setLoadError(false);
+      const entry = await getDiaryEntryById(editId);
+      if (!entry) {
+        setLoadError(true);
+        return;
+      }
       setTitle(entry.title);
       setContent(entry.content);
       setMood(entry.mood);
@@ -74,8 +116,39 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       setPhotoUri(entry.photoUri);
       setDate(new Date(entry.date));
       setCreatedAt(entry.createdAt);
+      initialSnapshot.current = JSON.stringify({
+        title: entry.title,
+        content: entry.content,
+        mood: entry.mood,
+        catId: entry.catId,
+        photoUri: entry.photoUri,
+        date: new Date(entry.date).toISOString(),
+      });
+    } catch (err) {
+      console.error('Failed to load diary entry:', err);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
     }
   }
+
+  // 未保存の変更がある状態で画面を離れようとしたら確認する
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const isDirty = serialize() !== initialSnapshot.current;
+      if (!isDirty || skipDiscardGuard.current || loadError) return;
+      e.preventDefault();
+      Alert.alert('変更を破棄しますか？', '編集中の内容は保存されません', [
+        { text: '編集を続ける', style: 'cancel' },
+        {
+          text: '破棄',
+          style: 'destructive',
+          onPress: () => navigation.dispatch(e.data.action),
+        },
+      ]);
+    });
+    return unsubscribe;
+  }, [navigation, serialize, loadError]);
 
   async function pickImage() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -86,7 +159,8 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      const resized = await resizeImage(result.assets[0].uri);
+      setPhotoUri(resized);
     }
   }
 
@@ -130,6 +204,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
 
       await saveDiaryEntry(entry, user.id);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      skipDiscardGuard.current = true;
       navigation.goBack();
     } catch (err) {
       console.error('Failed to save diary entry:', err);
@@ -142,6 +217,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
 
   function handleDelete() {
     if (!editId || !user?.id) return;
+    const userId = user.id;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert('削除確認', 'この日記を削除しますか？', [
       { text: 'キャンセル', style: 'cancel' },
@@ -149,12 +225,61 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         text: '削除',
         style: 'destructive',
         onPress: async () => {
-          await deleteDiaryEntry(editId, user.id);
+          // 元に戻せるよう削除前のスナップショットを保持
+          const snapshot: DiaryEntry = {
+            id: editId,
+            catId,
+            date: date.toISOString(),
+            title: title.trim() || '無題',
+            content: content.trim(),
+            mood,
+            photoUri,
+            createdAt: createdAt ?? new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await deleteDiaryEntry(editId, userId);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          skipDiscardGuard.current = true;
           navigation.goBack();
+          showSnackbar({
+            message: '日記を削除しました',
+            actionLabel: '元に戻す',
+            onAction: async () => {
+              try {
+                await saveDiaryEntry(snapshot, userId);
+              } catch (err) {
+                console.error('Failed to undo delete:', err);
+              }
+            },
+          });
         },
       },
     ]);
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.loadErrorEmoji}>😿</Text>
+        <Text style={styles.loadErrorText}>日記を読み込めませんでした</Text>
+        <TouchableOpacity
+          style={styles.loadErrorButton}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="前の画面に戻る"
+        >
+          <Text style={styles.loadErrorButtonText}>戻る</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
@@ -198,7 +323,12 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
             </View>
           </View>
         ) : (
-          <TouchableOpacity style={styles.photoPlaceholder} onPress={pickImage}>
+          <TouchableOpacity
+            style={styles.photoPlaceholder}
+            onPress={pickImage}
+            accessibilityRole="button"
+            accessibilityLabel="写真を追加"
+          >
             <Text style={styles.photoPlaceholderEmoji}>📷</Text>
             <Text style={styles.photoPlaceholderText}>写真を追加</Text>
           </TouchableOpacity>
@@ -247,6 +377,9 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
               key={m}
               style={[styles.moodButton, mood === m && styles.moodButtonActive]}
               onPress={() => setMood(m)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: mood === m }}
+              accessibilityLabel={`気分: ${moodLabels[m]}`}
             >
               <Text style={styles.moodEmoji}>{moodEmojis[m]}</Text>
               <Text
@@ -283,7 +416,12 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         )}
 
         {editId && (
-          <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            accessibilityRole="button"
+            accessibilityLabel="この日記を削除"
+          >
             <Text style={styles.deleteButtonText}>🗑 この日記を削除</Text>
           </TouchableOpacity>
         )}
@@ -293,6 +431,9 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         style={[styles.saveButton, saving && styles.saveButtonDisabled]}
         onPress={handleSave}
         disabled={saving}
+        accessibilityRole="button"
+        accessibilityLabel="日記を保存する"
+        accessibilityState={{ disabled: saving }}
       >
         <Text style={styles.saveButtonText}>{saving ? '保存中...' : '保存する'}</Text>
       </TouchableOpacity>
@@ -305,6 +446,33 @@ const createStyles = (colors: ThemeColors) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    centered: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      padding: spacing.xl,
+    },
+    loadErrorEmoji: {
+      fontSize: 56,
+      marginBottom: spacing.lg,
+    },
+    loadErrorText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: spacing.xl,
+    },
+    loadErrorButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xxl,
+      borderRadius: borderRadius.md,
+    },
+    loadErrorButtonText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+      fontSize: 16,
     },
     scrollView: {
       flex: 1,

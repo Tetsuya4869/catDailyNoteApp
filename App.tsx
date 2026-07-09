@@ -22,9 +22,11 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
 import CatEditScreen from './src/screens/CatEditScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import SyncStatusBanner from './src/components/SyncStatusBanner';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { CatProvider } from './src/contexts/CatContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { SnackbarProvider } from './src/contexts/SnackbarContext';
 import { RootStackParamList, TabParamList } from './src/navigation/types';
 import { spacing } from './src/constants/theme';
 
@@ -178,6 +180,7 @@ function AppNavigator() {
   return (
     <NavigationContainer theme={navigationTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      <SnackbarProvider>
       <Stack.Navigator
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
@@ -228,6 +231,8 @@ function AppNavigator() {
           </>
         )}
       </Stack.Navigator>
+      </SnackbarProvider>
+      {user && <SyncStatusBanner />}
     </NavigationContainer>
   );
 }

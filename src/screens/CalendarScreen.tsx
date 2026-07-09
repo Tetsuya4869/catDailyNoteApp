@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -38,7 +39,9 @@ export default function CalendarScreen() {
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
 
   const loadEntries = useCallback(
     async (isActive: () => boolean = () => true) => {
@@ -93,11 +96,19 @@ export default function CalendarScreen() {
     return [...paddedDays, ...days];
   }, [currentMonth]);
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadEntries();
+    setRefreshing(false);
+  }
+
   function goToPreviousMonth() {
+    setSelectedDayKey(null);
     setCurrentMonth((m) => subMonths(m, 1));
   }
 
   function goToNextMonth() {
+    setSelectedDayKey(null);
     setCurrentMonth((m) => addMonths(m, 1));
   }
 
@@ -105,11 +116,18 @@ export default function CalendarScreen() {
     const key = format(day, 'yyyy-MM-dd');
     const dayEntries = entriesByDate.get(key);
     if (dayEntries && dayEntries.length > 0) {
-      navigation.navigate('DiaryEntry', { id: dayEntries[0].id });
+      // 複数件ある場合はパネルで一覧を表示（先頭固定で開かない）
+      setSelectedDayKey((prev) => (prev === key ? null : key));
     } else {
-      navigation.navigate('DiaryEntry', {});
+      // 日記がない日はその日付で新規作成
+      setSelectedDayKey(null);
+      navigation.navigate('DiaryEntry', { date: day.toISOString() });
     }
   }
+
+  const selectedDayEntries = selectedDayKey
+    ? entriesByDate.get(selectedDayKey) ?? []
+    : [];
 
   if (loading) {
     return (
@@ -137,15 +155,35 @@ export default function CalendarScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+        />
+      }
+    >
       <View style={styles.header}>
-        <TouchableOpacity onPress={goToPreviousMonth} style={styles.navButton}>
+        <TouchableOpacity
+          onPress={goToPreviousMonth}
+          style={styles.navButton}
+          accessibilityRole="button"
+          accessibilityLabel="前の月"
+        >
           <Text style={styles.navButtonText}>◀</Text>
         </TouchableOpacity>
         <Text style={styles.monthTitle}>
           {format(currentMonth, 'yyyy年M月', { locale: ja })}
         </Text>
-        <TouchableOpacity onPress={goToNextMonth} style={styles.navButton}>
+        <TouchableOpacity
+          onPress={goToNextMonth}
+          style={styles.navButton}
+          accessibilityRole="button"
+          accessibilityLabel="次の月"
+        >
           <Text style={styles.navButtonText}>▶</Text>
         </TouchableOpacity>
       </View>
@@ -176,13 +214,24 @@ export default function CalendarScreen() {
           const dayEntries = entriesByDate.get(key);
           const hasEntry = dayEntries && dayEntries.length > 0;
           const isToday = isSameDay(day, new Date());
+          const isSelected = selectedDayKey === key;
           const dayOfWeek = getDay(day);
 
           return (
             <TouchableOpacity
               key={key}
-              style={[styles.dayCell, isToday && styles.todayCell]}
+              style={[
+                styles.dayCell,
+                isToday && styles.todayCell,
+                isSelected && !isToday && styles.selectedCell,
+              ]}
               onPress={() => handleDayPress(day)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                hasEntry
+                  ? `${format(day, 'M月d日')} 日記${dayEntries.length}件`
+                  : `${format(day, 'M月d日')} 日記を追加`
+              }
             >
               <Text
                 style={[
@@ -195,20 +244,61 @@ export default function CalendarScreen() {
                 {format(day, 'd')}
               </Text>
               {hasEntry && (
-                <Text style={styles.moodIndicator}>
-                  {moodEmojis[dayEntries[0].mood]}
-                </Text>
+                <View style={styles.moodRow}>
+                  <Text style={styles.moodIndicator}>
+                    {moodEmojis[dayEntries[0].mood]}
+                  </Text>
+                  {dayEntries.length > 1 && (
+                    <Text style={styles.moodCountBadge}>
+                      +{dayEntries.length - 1}
+                    </Text>
+                  )}
+                </View>
               )}
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <View style={styles.legend}>
-        <Text style={styles.legendText}>
-          日付をタップして日記を見る・書く
-        </Text>
-      </View>
+      {selectedDayKey && selectedDayEntries.length > 0 ? (
+        <View style={styles.dayPanel}>
+          <Text style={styles.dayPanelTitle}>
+            {format(new Date(selectedDayKey), 'M月d日(E)', { locale: ja })}の日記
+          </Text>
+          {selectedDayEntries.map((entry) => (
+            <TouchableOpacity
+              key={entry.id}
+              style={styles.dayPanelRow}
+              onPress={() => navigation.navigate('DiaryEntry', { id: entry.id })}
+              accessibilityRole="button"
+              accessibilityLabel={`${entry.title} を開く`}
+            >
+              <Text style={styles.dayPanelMood}>{moodEmojis[entry.mood]}</Text>
+              <Text style={styles.dayPanelText} numberOfLines={1}>
+                {entry.title}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={styles.dayPanelAdd}
+            onPress={() =>
+              navigation.navigate('DiaryEntry', {
+                date: new Date(selectedDayKey).toISOString(),
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="この日に日記を追加"
+          >
+            <Text style={styles.dayPanelAddText}>＋ この日に日記を追加</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.legend}>
+          <Text style={styles.legendText}>
+            日付をタップして日記を見る・書く
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -288,6 +378,10 @@ const createStyles = (colors: ThemeColors) =>
       backgroundColor: colors.primary,
       borderRadius: borderRadius.md,
     },
+    selectedCell: {
+      backgroundColor: colors.backgroundMuted,
+      borderRadius: borderRadius.md,
+    },
     dayText: {
       fontSize: 14,
       color: colors.text,
@@ -296,9 +390,19 @@ const createStyles = (colors: ThemeColors) =>
       color: '#FFFFFF',
       fontWeight: 'bold',
     },
+    moodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 2,
+    },
     moodIndicator: {
       fontSize: 12,
-      marginTop: 2,
+    },
+    moodCountBadge: {
+      fontSize: 9,
+      fontWeight: 'bold',
+      color: colors.primary,
+      marginLeft: 1,
     },
     legend: {
       padding: spacing.xl,
@@ -307,5 +411,45 @@ const createStyles = (colors: ThemeColors) =>
     legendText: {
       fontSize: 12,
       color: colors.textMuted,
+    },
+    dayPanel: {
+      margin: spacing.lg,
+      padding: spacing.lg,
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.lg,
+    },
+    dayPanelTitle: {
+      fontSize: 15,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginBottom: spacing.md,
+    },
+    dayPanelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.backgroundMuted,
+    },
+    dayPanelMood: {
+      fontSize: 20,
+      marginRight: spacing.md,
+    },
+    dayPanelText: {
+      flex: 1,
+      fontSize: 15,
+      color: colors.text,
+    },
+    dayPanelAdd: {
+      marginTop: spacing.md,
+      paddingVertical: spacing.md,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+    },
+    dayPanelAddText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: 'bold',
     },
   });
