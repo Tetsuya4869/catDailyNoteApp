@@ -9,6 +9,7 @@ import {
   FlatList,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
   useFocusEffect,
@@ -22,6 +23,7 @@ import { ja } from 'date-fns/locale';
 import {
   DiaryEntry,
   HealthRecord,
+  Appointment,
   catColorEmojis,
   catGenderSymbols,
   moodEmojis,
@@ -32,7 +34,12 @@ import { getDiaryEntries } from '../storage/diaryStorage';
 import {
   getHealthRecordsByCat,
   getWeightSeries,
+  getUpcomingAppointments,
+  saveAppointment,
+  deleteAppointment,
+  deleteHealthRecord,
 } from '../storage/healthStorage';
+import { cancelAppointmentNotification } from '../utils/notifications';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
@@ -66,6 +73,7 @@ export default function CatProfileScreen() {
   const [segment, setSegment] = useState<Segment>('diary');
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [health, setHealth] = useState<HealthRecord[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [weights, setWeights] = useState<{ date: string; weightKg: number }[]>(
     []
   );
@@ -76,10 +84,11 @@ export default function CatProfileScreen() {
     if (!user?.id) return;
     try {
       setError(null);
-      const [all, healthRecords, weightSeries] = await Promise.all([
+      const [all, healthRecords, weightSeries, upcoming] = await Promise.all([
         getDiaryEntries(user.id),
         getHealthRecordsByCat(catId, user.id),
         getWeightSeries(catId, user.id),
+        getUpcomingAppointments(user.id),
       ]);
       setEntries(
         all
@@ -91,6 +100,7 @@ export default function CatProfileScreen() {
       );
       setHealth(healthRecords);
       setWeights(weightSeries);
+      setAppointments(upcoming.filter((a) => a.catId === catId));
     } catch (err) {
       console.error('Failed to load cat profile data:', err);
       setError('データの読み込みに失敗しました');
@@ -98,6 +108,65 @@ export default function CatProfileScreen() {
       setLoading(false);
     }
   }, [catId, user?.id]);
+
+  async function handleCompleteAppointment(appt: Appointment) {
+    if (!user?.id) return;
+    try {
+      await saveAppointment({ ...appt, done: true }, user.id);
+      await cancelAppointmentNotification(appt.id);
+      setAppointments((prev) => prev.filter((a) => a.id !== appt.id));
+    } catch (err) {
+      console.error('Failed to complete appointment:', err);
+      Alert.alert('エラー', '予定の更新に失敗しました');
+    }
+  }
+
+  function handleDeleteAppointment(appt: Appointment) {
+    if (!user?.id) return;
+    const userId = user.id;
+    Alert.alert('削除確認', `「${appt.title}」を削除しますか？`, [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteAppointment(appt.id, userId);
+            await cancelAppointmentNotification(appt.id);
+            setAppointments((prev) => prev.filter((a) => a.id !== appt.id));
+          } catch (err) {
+            console.error('Failed to delete appointment:', err);
+            Alert.alert('エラー', '削除に失敗しました');
+          }
+        },
+      },
+    ]);
+  }
+
+  function handleDeleteHealthRecord(record: HealthRecord) {
+    if (!user?.id) return;
+    const userId = user.id;
+    const label = record.title || healthTypeLabels[record.type];
+    Alert.alert('削除確認', `「${label}」の記録を削除しますか？`, [
+      { text: 'キャンセル', style: 'cancel' },
+      {
+        text: '削除',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteHealthRecord(record.id, userId);
+            setHealth((prev) => prev.filter((r) => r.id !== record.id));
+            if (record.type === 'weight') {
+              setWeights((prev) => prev.filter((w) => w.date !== record.date));
+            }
+          } catch (err) {
+            console.error('Failed to delete health record:', err);
+            Alert.alert('エラー', '削除に失敗しました');
+          }
+        },
+      },
+    ]);
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -271,36 +340,107 @@ export default function CatProfileScreen() {
   }
 
   function renderHealth() {
-    if (health.length === 0) {
-      return (
-        <EmptyState
-          styles={styles}
-          emoji="🏥"
-          text="健康記録はまだありません"
-          sub="体重・通院・ワクチン・投薬を記録できます"
-        />
-      );
-    }
     return (
       <View style={styles.section}>
+        <View style={styles.healthActions}>
+          <TouchableOpacity
+            style={styles.healthActionButton}
+            onPress={() =>
+              navigation.navigate('HealthEntry', { catId, mode: 'record' })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="健康記録を追加"
+          >
+            <Text style={styles.healthActionText}>＋ 記録</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.healthActionButton, styles.healthActionSecondary]}
+            onPress={() =>
+              navigation.navigate('HealthEntry', { catId, mode: 'appointment' })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="予定を追加"
+          >
+            <Text style={styles.healthActionText}>＋ 予定</Text>
+          </TouchableOpacity>
+        </View>
+
+        {appointments.length > 0 && (
+          <>
+            <Text style={styles.healthSectionTitle}>📅 今後の予定</Text>
+            {appointments.map((a) => (
+              <TouchableOpacity
+                key={a.id}
+                style={styles.appointmentRow}
+                onLongPress={() => handleDeleteAppointment(a)}
+                accessibilityRole="button"
+                accessibilityLabel={`予定: ${a.title}`}
+                accessibilityHint="長押しで削除できます"
+              >
+                <TouchableOpacity
+                  style={styles.appointmentCheck}
+                  onPress={() => handleCompleteAppointment(a)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: false }}
+                  accessibilityLabel={`${a.title}を完了にする`}
+                >
+                  <Text style={styles.appointmentCheckText}>◯</Text>
+                </TouchableOpacity>
+                <View style={styles.healthBody}>
+                  <Text style={styles.healthTitle}>
+                    {healthTypeEmojis[a.type]} {a.title}
+                  </Text>
+                  <Text style={styles.healthDate}>
+                    {format(new Date(a.date), 'yyyy年M月d日(E)', { locale: ja })}
+                  </Text>
+                  {!!a.note && <Text style={styles.healthNote}>{a.note}</Text>}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
         {renderWeightChart()}
-        {health.map((r) => (
-          <View key={r.id} style={styles.healthRow}>
-            <Text style={styles.healthEmoji}>{healthTypeEmojis[r.type]}</Text>
-            <View style={styles.healthBody}>
-              <Text style={styles.healthTitle}>
-                {r.title || healthTypeLabels[r.type]}
-                {r.type === 'weight' && r.weightKg != null
-                  ? ` ${r.weightKg}kg`
-                  : ''}
-              </Text>
-              <Text style={styles.healthDate}>
-                {format(new Date(r.date), 'yyyy年M月d日', { locale: ja })}
-              </Text>
-              {!!r.note && <Text style={styles.healthNote}>{r.note}</Text>}
-            </View>
-          </View>
-        ))}
+
+        {health.length === 0 && appointments.length === 0 ? (
+          <EmptyState
+            styles={styles}
+            emoji="🏥"
+            text="健康記録はまだありません"
+            sub="体重・通院・ワクチン・投薬を記録できます"
+          />
+        ) : (
+          <>
+            {health.length > 0 && (
+              <Text style={styles.healthSectionTitle}>📋 記録</Text>
+            )}
+            {health.map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={styles.healthRow}
+                onLongPress={() => handleDeleteHealthRecord(r)}
+                accessibilityRole="button"
+                accessibilityLabel={`記録: ${r.title || healthTypeLabels[r.type]}`}
+                accessibilityHint="長押しで削除できます"
+              >
+                <Text style={styles.healthEmoji}>{healthTypeEmojis[r.type]}</Text>
+                <View style={styles.healthBody}>
+                  <Text style={styles.healthTitle}>
+                    {r.title || healthTypeLabels[r.type]}
+                    {r.type === 'weight' && r.weightKg != null
+                      ? ` ${r.weightKg}kg`
+                      : ''}
+                  </Text>
+                  <Text style={styles.healthDate}>
+                    {format(new Date(r.date), 'yyyy年M月d日', { locale: ja })}
+                  </Text>
+                  {!!r.note && <Text style={styles.healthNote}>{r.note}</Text>}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </View>
     );
   }
@@ -562,6 +702,51 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 10,
       color: colors.textMuted,
       marginTop: spacing.xs,
+    },
+    healthActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+      marginBottom: spacing.lg,
+    },
+    healthActionButton: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center',
+    },
+    healthActionSecondary: {
+      backgroundColor: colors.brown,
+    },
+    healthActionText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: 'bold',
+    },
+    healthSectionTitle: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: colors.textSecondary,
+      marginBottom: spacing.md,
+      marginTop: spacing.sm,
+    },
+    appointmentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: borderRadius.lg,
+      padding: spacing.lg,
+      marginBottom: spacing.md,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+    },
+    appointmentCheck: {
+      marginRight: spacing.md,
+    },
+    appointmentCheckText: {
+      fontSize: 22,
+      color: colors.primary,
+      fontWeight: 'bold',
     },
     healthRow: {
       flexDirection: 'row',

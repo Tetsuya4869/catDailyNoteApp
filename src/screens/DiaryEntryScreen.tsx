@@ -19,7 +19,16 @@ import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { CatMood, DiaryEntry, moodEmojis, moodLabels, catColorEmojis } from '../types';
+import {
+  CatMood,
+  DiaryEntry,
+  PostCategory,
+  moodEmojis,
+  moodLabels,
+  catColorEmojis,
+  postCategoryEmojis,
+  postCategoryLabels,
+} from '../types';
 import {
   saveDiaryEntry,
   getDiaryEntryById,
@@ -39,6 +48,14 @@ type Props = {
 };
 
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
+const categories: PostCategory[] = [
+  'meal',
+  'play',
+  'sleep',
+  'health',
+  'grooming',
+  'other',
+];
 
 export default function DiaryEntryScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
@@ -56,6 +73,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
     presetCatId || selectedCatId || undefined
   );
   const [photoUri, setPhotoUri] = useState<string | undefined>();
+  const [category, setCategory] = useState<PostCategory | undefined>();
   const [date, setDate] = useState(() =>
     presetDate ? new Date(presetDate) : new Date()
   );
@@ -78,9 +96,10 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         mood,
         catId,
         photoUri,
+        category,
         date: date.toISOString(),
       }),
-    [title, content, mood, catId, photoUri, date]
+    [title, content, mood, catId, photoUri, category, date]
   );
 
   useEffect(() => {
@@ -94,6 +113,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         mood: 'happy',
         catId: presetCatId || selectedCatId || undefined,
         photoUri: undefined,
+        category: undefined,
         date: date.toISOString(),
       });
     }
@@ -114,6 +134,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
       setMood(entry.mood);
       setCatId(entry.catId);
       setPhotoUri(entry.photoUri);
+      setCategory(entry.category);
       setDate(new Date(entry.date));
       setCreatedAt(entry.createdAt);
       initialSnapshot.current = JSON.stringify({
@@ -122,6 +143,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         mood: entry.mood,
         catId: entry.catId,
         photoUri: entry.photoUri,
+        category: entry.category,
         date: new Date(entry.date).toISOString(),
       });
     } catch (err) {
@@ -198,6 +220,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
         content: content.trim(),
         mood,
         photoUri,
+        category,
         createdAt: createdAt ?? new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -234,6 +257,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
             content: content.trim(),
             mood,
             photoUri,
+            category,
             createdAt: createdAt ?? new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
@@ -389,6 +413,35 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+
+        <Text style={styles.label}>カテゴリ（任意）</Text>
+        <View style={styles.categoryContainer}>
+          {categories.map((c) => {
+            const active = category === c;
+            return (
+              <TouchableOpacity
+                key={c}
+                style={[
+                  styles.categoryButton,
+                  active && styles.categoryButtonActive,
+                ]}
+                onPress={() => setCategory(active ? undefined : c)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`カテゴリ: ${postCategoryLabels[c]}`}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    active && styles.categoryTextActive,
+                  ]}
+                >
+                  {postCategoryEmojis[c]} {postCategoryLabels[c]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <Text style={styles.label}>タイトル</Text>
@@ -606,6 +659,33 @@ const createStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
     },
     moodLabelActive: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+    },
+    categoryContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+      marginBottom: spacing.xxl,
+    },
+    categoryButton: {
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.full,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryButtonActive: {
+      backgroundColor: colors.brown,
+      borderColor: colors.brown,
+    },
+    categoryText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    categoryTextActive: {
       color: '#FFFFFF',
       fontWeight: 'bold',
     },

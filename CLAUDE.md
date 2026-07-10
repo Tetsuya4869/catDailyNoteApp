@@ -23,60 +23,87 @@ npx tsc --noEmit   # TypeScript 型チェック
 - **React Navigation** v6
   - `@react-navigation/native-stack` — スタックナビゲーション
   - `@react-navigation/bottom-tabs` — 4タブ + 中央 FAB
+- **Supabase** — Google OAuth 認証・PostgreSQL(RLS)・Storage（写真）
+- **@react-native-community/netinfo** — オンライン/オフライン検知
 - **expo-image-picker** — 写真ライブラリへのアクセス
-- **expo-file-system** — 写真をアプリ内にコピーして永続化
-- **AsyncStorage** — データの永続化
+- **expo-image-manipulator** — アップロード前の写真リサイズ（長辺1920px）
+- **expo-notifications** — 日記リマインダー・予定通知
+- **AsyncStorage** — オフラインキャッシュ + pending ops キュー
 - **Jest** — ユニットテスト
+
+## データ同期（オフラインファースト）
+
+- 各 storage 関数は `userId` を受け取り、オンライン時は Supabase と同期、オフライン時は AsyncStorage キャッシュを使用
+- オフライン中の変更は pending ops キューに積まれ、オンライン復帰時に `SyncStatusBanner` が自動同期
+- 初回ログイン時に `src/lib/migration.ts` がローカルデータを Supabase へ移行
+- SQL は `supabase/migrations/` を Supabase Dashboard で実行
 
 ## アーキテクチャ
 
 ### ナビゲーション構造（Plan A: タイムライン中心）
 
 ```
+Login (未ログイン時) — Google ログイン
+
 MainTabs (BottomTabNavigator)
-├── ホーム     — タイムライン（猫切替チップ付き）
-├── カレンダー — 月間カレンダー
+├── ホーム     — タイムライン（猫切替チップ・直近予定バナー付き）
+├── カレンダー — 月間カレンダー（同日複数日記はパネル表示）
 ├── [中央FAB]  — 新規投稿モーダル
 ├── マイ猫    — 猫一覧（2カラムグリッド）
-└── 設定      — テーマ・リマインダー・データ管理
+└── 設定      — アカウント・テーマ・リマインダー・統計への導線
 
 Stack (モーダル/詳細)
 ├── CatProfile  — 猫プロフィール（日記/健康/アルバム セグメント）
-├── DiaryEntry  — 日記投稿/編集
-├── CatEdit     — 猫追加/編集
-└── Stats       — 統計
+├── DiaryEntry  — 日記投稿/編集（カテゴリタグ・未保存ガード・削除Undo）
+├── CatEdit     — 猫追加/編集/削除
+├── HealthEntry — 健康記録・予定の追加（mode: 'record' | 'appointment'）
+└── Stats       — 統計（猫別切替・エクスポート/インポート）
 ```
 
 ### ディレクトリ構成
 
 ```
 src/
+├── components/
+│   └── SyncStatusBanner.tsx   # オフライン/同期中/同期完了バナー + 自動同期
 ├── constants/theme.ts         # カラーパレット（テラコッタ/クリーム）、spacing、borderRadius
 ├── contexts/
+│   ├── AuthContext.tsx        # Supabase Google OAuth・セッション管理
 │   ├── CatContext.tsx         # 猫一覧・選択状態のグローバル管理
+│   ├── SnackbarContext.tsx    # スナックバー（削除Undo等）
 │   └── ThemeContext.tsx       # ライト/ダーク/システムテーマ
+├── lib/
+│   ├── supabase.ts            # Supabase クライアント
+│   ├── database.types.ts      # DB 行型（DbCat, DbDiaryEntry 等）
+│   ├── syncService.ts         # isOnline、App↔DB マッパー、型検証
+│   ├── photoStorage.ts        # Supabase Storage への写真アップロード
+│   └── migration.ts           # 初回ログイン時のローカル→Supabase 移行
 ├── navigation/types.ts        # RootStackParamList, TabParamList
 ├── screens/
-│   ├── HomeScreen.tsx         # タイムライン（猫切替チップ）
+│   ├── LoginScreen.tsx        # Google ログイン
+│   ├── HomeScreen.tsx         # タイムライン（猫切替チップ・予定バナー）
 │   ├── CalendarScreen.tsx     # 月間カレンダー
 │   ├── CatsScreen.tsx         # マイ猫（2カラムグリッド）
-│   ├── CatProfileScreen.tsx   # 猫プロフィール（セグメント: 日記/健康/アルバム）
-│   ├── CatEditScreen.tsx      # 猫追加/編集
+│   ├── CatProfileScreen.tsx   # 猫プロフィール（日記/健康+予定/アルバム）
+│   ├── CatEditScreen.tsx      # 猫追加/編集/削除
 │   ├── DiaryEntryScreen.tsx   # 日記投稿/編集
+│   ├── HealthEntryScreen.tsx  # 健康記録・予定の追加
 │   ├── SettingsScreen.tsx     # 設定
 │   └── StatsScreen.tsx        # 統計
 ├── storage/
-│   ├── catStorage.ts          # 猫 CRUD
-│   ├── diaryStorage.ts        # 日記 CRUD
-│   ├── healthStorage.ts       # 健康記録・予定 CRUD
-│   ├── settingsStorage.ts     # 設定の永続化
+│   ├── catStorage.ts          # 猫 CRUD（Supabase 同期 + キャッシュ）
+│   ├── diaryStorage.ts        # 日記 CRUD（同上）
+│   ├── healthStorage.ts       # 健康記録・予定 CRUD（同上）
+│   ├── settingsStorage.ts     # 設定の永続化（ローカルのみ）
 │   └── __tests__/             # ストレージのユニットテスト
 ├── types/index.ts             # Cat, DiaryEntry, HealthRecord, Appointment 等
 └── utils/
     ├── age.ts                 # formatCatAge（N歳Mヶ月）
-    ├── export.ts              # データエクスポート
-    └── notifications.ts       # リマインダー通知
-App.tsx                        # ThemeProvider > CatProvider > NavigationContainer
+    ├── export.ts              # データエクスポート/インポート
+    ├── image.ts               # resizeImage（アップロード前圧縮）
+    └── notifications.ts       # 日記リマインダー・予定通知
+supabase/migrations/           # テーブル・RLS・Storage バケット定義 SQL
+App.tsx                        # ThemeProvider > AuthProvider > CatProvider > Navigation
 ```
 
 ## カラーパレット

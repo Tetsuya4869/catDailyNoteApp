@@ -6,6 +6,7 @@ export type RootStackParamList = {
   DiaryEntry: { id?: string; catId?: string; date?: string };
   NewPost: undefined; // 中央FAB用ダミー（tabBarButtonで横取り）
   CatEdit: { id?: string };
+  HealthEntry: { catId: string; mode: 'record' | 'appointment' };
   Stats: undefined;
 };
 

@@ -21,6 +21,7 @@ import StatsScreen from './src/screens/StatsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import DiaryEntryScreen from './src/screens/DiaryEntryScreen';
 import CatEditScreen from './src/screens/CatEditScreen';
+import HealthEntryScreen from './src/screens/HealthEntryScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import SyncStatusBanner from './src/components/SyncStatusBanner';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
@@ -220,6 +221,17 @@ function AppNavigator() {
               component={CatEditScreen}
               options={({ route }) => ({
                 title: route.params?.id ? '猫を編集' : '猫を追加',
+                presentation: 'modal',
+              })}
+            />
+            <Stack.Screen
+              name="HealthEntry"
+              component={HealthEntryScreen}
+              options={({ route }) => ({
+                title:
+                  route.params.mode === 'appointment'
+                    ? '予定を追加'
+                    : '健康記録を追加',
                 presentation: 'modal',
               })}
             />

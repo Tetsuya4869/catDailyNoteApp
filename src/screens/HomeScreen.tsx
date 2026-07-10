@@ -16,8 +16,17 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { DiaryEntry, moodEmojis, catColorEmojis } from '../types';
+import {
+  DiaryEntry,
+  Appointment,
+  moodEmojis,
+  catColorEmojis,
+  postCategoryEmojis,
+  postCategoryLabels,
+  healthTypeEmojis,
+} from '../types';
 import { getDiaryEntries, saveDiaryEntry } from '../storage/diaryStorage';
+import { getUpcomingAppointments } from '../storage/healthStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
@@ -37,6 +46,9 @@ export default function HomeScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
+  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(
+    null
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,12 +60,16 @@ export default function HomeScreen() {
       if (!user?.id) return;
       try {
         setError(null);
-        const data = await getDiaryEntries(user.id);
+        const [data, upcoming] = await Promise.all([
+          getDiaryEntries(user.id),
+          getUpcomingAppointments(user.id).catch(() => [] as Appointment[]),
+        ]);
         if (!isActive()) return;
         const sorted = [...data].sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         );
         setEntries(sorted);
+        setNextAppointment(upcoming[0] ?? null);
       } catch (err) {
         console.error('Failed to load diary entries:', err);
         if (isActive()) {
@@ -167,6 +183,14 @@ export default function HomeScreen() {
               {item.content}
             </Text>
           )}
+          {item.category && (
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryTagText}>
+                {postCategoryEmojis[item.category]}{' '}
+                {postCategoryLabels[item.category]}
+              </Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -255,6 +279,32 @@ export default function HomeScreen() {
             );
           })}
         </ScrollView>
+      )}
+
+      {nextAppointment && (
+        <TouchableOpacity
+          style={styles.appointmentBanner}
+          onPress={() =>
+            navigation.navigate('CatProfile', {
+              catId: nextAppointment.catId,
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel={`次の予定: ${nextAppointment.title}`}
+        >
+          <Text style={styles.appointmentBannerText} numberOfLines={1}>
+            {healthTypeEmojis[nextAppointment.type]}{' '}
+            {format(new Date(nextAppointment.date), 'M月d日(E)', { locale: ja })}{' '}
+            {nextAppointment.title}
+            {(() => {
+              const apptCat = cats.find(
+                (c) => c.id === nextAppointment.catId
+              );
+              return apptCat ? ` — ${apptCat.name}` : '';
+            })()}
+          </Text>
+          <Text style={styles.appointmentBannerChevron}>›</Text>
+        </TouchableOpacity>
       )}
 
       {error && (
@@ -381,6 +431,27 @@ const createStyles = (colors: ThemeColors) =>
       color: '#FFFFFF',
       fontWeight: 'bold',
     },
+    appointmentBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.peach,
+      marginHorizontal: spacing.lg,
+      marginTop: spacing.sm,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      borderRadius: borderRadius.md,
+    },
+    appointmentBannerText: {
+      flex: 1,
+      fontSize: 13,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    appointmentBannerChevron: {
+      fontSize: 18,
+      color: colors.brown,
+      marginLeft: spacing.sm,
+    },
     list: {
       padding: spacing.lg,
     },
@@ -449,6 +520,19 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 14,
       color: colors.textSecondary,
       lineHeight: 20,
+    },
+    categoryTag: {
+      alignSelf: 'flex-start',
+      backgroundColor: colors.backgroundMuted,
+      borderRadius: borderRadius.full,
+      paddingVertical: 2,
+      paddingHorizontal: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    categoryTagText: {
+      fontSize: 11,
+      color: colors.brown,
+      fontWeight: 'bold',
     },
     errorContainer: {
       flex: 1,
