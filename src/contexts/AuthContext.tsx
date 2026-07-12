@@ -7,32 +7,29 @@ import React, {
   ReactNode,
 } from 'react';
 import { Alert } from 'react-native';
-import { Session, User } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
-import { supabase } from '../lib/supabase';
+import * as Google from 'expo-auth-session/providers/google';
+import {
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithCredential,
+  signOut as firebaseSignOut,
+} from 'firebase/auth';
+import { auth } from '../lib/firebase';
 import { isMigrationNeeded, migrateLocalData } from '../lib/migration';
 
 WebBrowser.maybeCompleteAuthSession();
 
-function parseOAuthFragment(url: string): { accessToken?: string; refreshToken?: string } {
-  try {
-    const hashIndex = url.indexOf('#');
-    if (hashIndex === -1) return {};
-    const fragment = url.substring(hashIndex + 1);
-    const params = new URLSearchParams(fragment);
-    return {
-      accessToken: params.get('access_token') ?? undefined,
-      refreshToken: params.get('refresh_token') ?? undefined,
-    };
-  } catch {
-    return {};
-  }
-}
+// 画面側が特定の認証 SDK に依存しないよう、アプリ独自のユーザー型を公開する
+export type AppUser = {
+  id: string;
+  email?: string;
+  displayName?: string;
+  photoUrl?: string;
+};
 
 type AuthContextType = {
-  user: User | null;
-  session: Session | null;
+  user: AppUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -40,40 +37,58 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   loading: true,
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+  // Google OAuth で id_token を取得し、Firebase Auth に引き渡す
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined,
+    androidClientId:
+      process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
+  });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          id: firebaseUser.uid,
+          email: firebaseUser.email ?? undefined,
+          displayName: firebaseUser.displayName ?? undefined,
+          photoUrl: firebaseUser.photoURL ?? undefined,
+        });
+      } else {
         setUser(null);
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        setSession(session);
-        setUser(session?.user ?? null);
       }
       setLoading(false);
     });
-
-    return () => subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const idToken = response.params?.id_token;
+      if (!idToken) {
+        Alert.alert('エラー', 'Google 認証情報を取得できませんでした');
+        return;
+      }
+      const credential = GoogleAuthProvider.credential(idToken);
+      signInWithCredential(auth, credential).catch((err) => {
+        console.error('Firebase sign-in failed:', err);
+        Alert.alert('エラー', 'ログインに失敗しました');
+      });
+    } else if (response?.type === 'error') {
+      Alert.alert('エラー', 'Google ログインに失敗しました');
+    }
+  }, [response]);
+
+  // 初回ログイン時にローカルデータを Firestore へ移行
   useEffect(() => {
     if (user?.id) {
       (async () => {
@@ -97,49 +112,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     try {
-      const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: 'catdailynote',
-        path: 'auth/callback',
-      });
-
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (error) {
-        Alert.alert('エラー', error.message);
+      if (!request) {
+        Alert.alert('エラー', 'ログインの準備中です。少し待って再試行してください');
         return;
       }
-
-      if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectUrl
-        );
-
-        if (result.type === 'success') {
-          const tokens = parseOAuthFragment(result.url);
-          if (tokens.accessToken && tokens.refreshToken) {
-            await supabase.auth.setSession({
-              access_token: tokens.accessToken,
-              refresh_token: tokens.refreshToken,
-            });
-          }
-        }
-      }
+      await promptAsync();
     } catch (error) {
       Alert.alert('エラー', 'ログインに失敗しました');
       console.error(error);
     }
-  }, []);
+  }, [request, promptAsync]);
 
   const signOut = useCallback(async () => {
     try {
-      await supabase.auth.signOut();
+      await firebaseSignOut(auth);
     } catch (error) {
       Alert.alert('エラー', 'ログアウトに失敗しました');
       console.error(error);
@@ -147,9 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider
-      value={{ user, session, loading, signInWithGoogle, signOut }}
-    >
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

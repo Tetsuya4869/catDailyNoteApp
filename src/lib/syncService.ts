@@ -2,7 +2,6 @@ import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Cat, DiaryEntry, HealthRecord, Appointment } from '../types';
 import { DbCat, DbDiaryEntry, DbHealthRecord, DbAppointment } from './database.types';
-import { getPhotoUrl } from './photoStorage';
 
 const SYNC_STATUS_KEY = '@cat_diary_sync_status';
 
@@ -26,21 +25,78 @@ export async function setSyncStatus(status: SyncStatus): Promise<void> {
   await AsyncStorage.setItem(SYNC_STATUS_KEY, JSON.stringify(status));
 }
 
-// --- Mappers: App -> DB ---
+// Firestore は undefined のフィールドを受け付けないため、書き込み前に除去する
+export function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result as T;
+}
 
-export function catToDb(cat: Cat, userId: string): Omit<DbCat, 'updated_at'> {
-  return {
+// --- Mappers: App -> Firestore ---
+
+export function catToDb(cat: Cat, userId: string): DbCat {
+  return stripUndefined({
     id: cat.id,
-    user_id: userId,
+    userId,
     name: cat.name,
     color: cat.color,
-    gender: cat.gender ?? null,
-    birth_date: cat.birthDate ?? null,
-    weight_goal: cat.weightGoal ?? null,
-    photo_path: null,
-    created_at: cat.createdAt,
-  };
+    gender: cat.gender,
+    birthDate: cat.birthDate,
+    weightGoal: cat.weightGoal,
+    photoUri: cat.photoUri,
+    createdAt: cat.createdAt,
+  });
 }
+
+export function diaryToDb(entry: DiaryEntry, userId: string): DbDiaryEntry {
+  return stripUndefined({
+    id: entry.id,
+    userId,
+    catId: entry.catId,
+    date: entry.date,
+    title: entry.title,
+    content: entry.content,
+    mood: entry.mood,
+    photoUri: entry.photoUri,
+    category: entry.category,
+    favorite: entry.favorite ?? false,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+  });
+}
+
+export function healthToDb(record: HealthRecord, userId: string): DbHealthRecord {
+  return stripUndefined({
+    id: record.id,
+    userId,
+    catId: record.catId,
+    type: record.type,
+    date: record.date,
+    weightKg: record.weightKg,
+    title: record.title,
+    note: record.note,
+    createdAt: record.createdAt,
+  });
+}
+
+export function appointmentToDb(appt: Appointment, userId: string): DbAppointment {
+  return stripUndefined({
+    id: appt.id,
+    userId,
+    catId: appt.catId,
+    type: appt.type,
+    date: appt.date,
+    title: appt.title,
+    note: appt.note,
+    done: appt.done,
+  });
+}
+
+// --- Mappers: Firestore -> App（型検証つき）---
 
 function isValidDbCat(row: unknown): row is DbCat {
   if (!row || typeof row !== 'object') return false;
@@ -48,36 +104,20 @@ function isValidDbCat(row: unknown): row is DbCat {
   return typeof r.id === 'string' && typeof r.name === 'string' && typeof r.color === 'string';
 }
 
-export function dbToCat(db: DbCat): Cat {
-  if (!isValidDbCat(db)) {
-    throw new Error('Invalid cat data from database');
+export function dbToCat(raw: unknown): Cat {
+  if (!isValidDbCat(raw)) {
+    throw new Error('Invalid cat data from Firestore');
   }
   return {
-    id: db.id,
-    userId: db.user_id,
-    name: db.name,
-    color: db.color,
-    gender: db.gender ?? undefined,
-    birthDate: db.birth_date ?? undefined,
-    weightGoal: db.weight_goal ?? undefined,
-    photoUri: db.photo_path ? getPhotoUrl(db.photo_path) : undefined,
-    createdAt: db.created_at,
-  };
-}
-
-export function diaryToDb(entry: DiaryEntry, userId: string): Omit<DbDiaryEntry, 'updated_at'> {
-  return {
-    id: entry.id,
-    user_id: userId,
-    cat_id: entry.catId ?? null,
-    date: entry.date.split('T')[0],
-    title: entry.title,
-    content: entry.content,
-    mood: entry.mood,
-    photo_path: null,
-    category: entry.category ?? null,
-    favorite: entry.favorite ?? false,
-    created_at: entry.createdAt,
+    id: raw.id,
+    userId: raw.userId,
+    name: raw.name,
+    color: raw.color,
+    gender: raw.gender ?? undefined,
+    birthDate: raw.birthDate ?? undefined,
+    weightGoal: raw.weightGoal ?? undefined,
+    photoUri: raw.photoUri ?? undefined,
+    createdAt: raw.createdAt,
   };
 }
 
@@ -87,95 +127,67 @@ function isValidDbDiary(row: unknown): row is DbDiaryEntry {
   return typeof r.id === 'string' && typeof r.title === 'string' && typeof r.mood === 'string';
 }
 
-export function dbToDiary(db: DbDiaryEntry): DiaryEntry {
-  if (!isValidDbDiary(db)) {
-    throw new Error('Invalid diary data from database');
+export function dbToDiary(raw: unknown): DiaryEntry {
+  if (!isValidDbDiary(raw)) {
+    throw new Error('Invalid diary data from Firestore');
   }
   return {
-    id: db.id,
-    userId: db.user_id,
-    catId: db.cat_id ?? undefined,
-    date: db.date,
-    title: db.title,
-    content: db.content,
-    mood: db.mood,
-    photoUri: db.photo_path ? getPhotoUrl(db.photo_path) : undefined,
-    category: db.category ?? undefined,
-    favorite: db.favorite,
-    createdAt: db.created_at,
-    updatedAt: db.updated_at,
-  };
-}
-
-export function healthToDb(record: HealthRecord, userId: string): DbHealthRecord {
-  return {
-    id: record.id,
-    user_id: userId,
-    cat_id: record.catId,
-    type: record.type,
-    date: record.date.split('T')[0],
-    weight_kg: record.weightKg ?? null,
-    title: record.title ?? null,
-    note: record.note ?? null,
-    created_at: record.createdAt,
+    id: raw.id,
+    userId: raw.userId,
+    catId: raw.catId ?? undefined,
+    date: raw.date,
+    title: raw.title,
+    content: raw.content ?? '',
+    mood: raw.mood,
+    photoUri: raw.photoUri ?? undefined,
+    category: raw.category ?? undefined,
+    favorite: raw.favorite ?? false,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
   };
 }
 
 function isValidDbHealth(row: unknown): row is DbHealthRecord {
   if (!row || typeof row !== 'object') return false;
   const r = row as Record<string, unknown>;
-  return typeof r.id === 'string' && typeof r.cat_id === 'string' && typeof r.type === 'string';
+  return typeof r.id === 'string' && typeof r.catId === 'string' && typeof r.type === 'string';
 }
 
-export function dbToHealth(db: DbHealthRecord): HealthRecord {
-  if (!isValidDbHealth(db)) {
-    throw new Error('Invalid health record data from database');
+export function dbToHealth(raw: unknown): HealthRecord {
+  if (!isValidDbHealth(raw)) {
+    throw new Error('Invalid health record data from Firestore');
   }
   return {
-    id: db.id,
-    userId: db.user_id,
-    catId: db.cat_id,
-    type: db.type,
-    date: db.date,
-    weightKg: db.weight_kg ?? undefined,
-    title: db.title ?? undefined,
-    note: db.note ?? undefined,
-    createdAt: db.created_at,
-  };
-}
-
-export function appointmentToDb(appt: Appointment, userId: string): DbAppointment {
-  return {
-    id: appt.id,
-    user_id: userId,
-    cat_id: appt.catId,
-    type: appt.type,
-    date: appt.date,
-    title: appt.title,
-    note: appt.note ?? null,
-    done: appt.done,
-    created_at: new Date().toISOString(),
+    id: raw.id,
+    userId: raw.userId,
+    catId: raw.catId,
+    type: raw.type,
+    date: raw.date,
+    weightKg: raw.weightKg ?? undefined,
+    title: raw.title ?? undefined,
+    note: raw.note ?? undefined,
+    createdAt: raw.createdAt,
   };
 }
 
 function isValidDbAppointment(row: unknown): row is DbAppointment {
   if (!row || typeof row !== 'object') return false;
   const r = row as Record<string, unknown>;
-  return typeof r.id === 'string' && typeof r.cat_id === 'string' && typeof r.title === 'string';
+  return typeof r.id === 'string' && typeof r.catId === 'string' && typeof r.title === 'string';
 }
 
-export function dbToAppointment(db: DbAppointment): Appointment {
-  if (!isValidDbAppointment(db)) {
-    throw new Error('Invalid appointment data from database');
+export function dbToAppointment(raw: unknown): Appointment {
+  if (!isValidDbAppointment(raw)) {
+    throw new Error('Invalid appointment data from Firestore');
   }
   return {
-    id: db.id,
-    userId: db.user_id,
-    catId: db.cat_id,
-    type: db.type,
-    date: db.date,
-    title: db.title,
-    note: db.note ?? undefined,
-    done: db.done,
+    id: raw.id,
+    userId: raw.userId,
+    catId: raw.catId,
+    type: raw.type,
+    date: raw.date,
+    title: raw.title,
+    note: raw.note ?? undefined,
+    done: raw.done,
   };
 }

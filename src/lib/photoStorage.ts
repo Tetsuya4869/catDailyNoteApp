@@ -1,6 +1,11 @@
 import * as FileSystem from 'expo-file-system';
-import { decode } from 'base64-arraybuffer';
-import { supabase } from './supabase';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from 'firebase/storage';
+import { storage } from './firebase';
 
 export type PhotoEntityType = 'cats' | 'diary';
 
@@ -13,6 +18,8 @@ export class PhotoSizeError extends Error {
   }
 }
 
+// ローカル写真を Firebase Storage にアップロードし、ダウンロード URL を返す。
+// 返された URL をそのまま photoUri として Firestore に保存する。
 export async function uploadPhoto(
   userId: string,
   entityType: PhotoEntityType,
@@ -30,39 +37,29 @@ export async function uploadPhoto(
       throw new PhotoSizeError('写真サイズが大きすぎます（5MB以下にしてください）');
     }
 
-    const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
     const timestamp = Date.now();
-    const storagePath = `${userId}/${entityType}/${entityId}_${timestamp}.${ext}`;
+    const storagePath = `${userId}/${entityType}/${entityId}_${timestamp}.jpg`;
 
-    const base64 = await FileSystem.readAsStringAsync(localUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    const response = await fetch(localUri);
+    const blob = await response.blob();
 
-    const { error } = await supabase.storage
-      .from('photos')
-      .upload(storagePath, decode(base64), {
-        contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
-        upsert: false,
-      });
+    const storageRef = ref(storage, storagePath);
+    await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
 
-    if (error) {
-      console.error('Photo upload error:', error);
-      return null;
-    }
-
-    return storagePath;
+    return await getDownloadURL(storageRef);
   } catch (err) {
     console.error('Photo upload exception:', err);
     return null;
   }
 }
 
-export function getPhotoUrl(photoPath: string): string {
-  const { data } = supabase.storage.from('photos').getPublicUrl(photoPath);
-  return data.publicUrl;
-}
-
-export async function deletePhoto(photoPath: string): Promise<boolean> {
-  const { error } = await supabase.storage.from('photos').remove([photoPath]);
-  return !error;
+// photoUri（https のダウンロード URL）から Storage 上のオブジェクトを削除する
+export async function deletePhoto(photoUrl: string): Promise<boolean> {
+  try {
+    await deleteObject(ref(storage, photoUrl));
+    return true;
+  } catch (err) {
+    console.error('Photo delete failed:', err);
+    return false;
+  }
 }

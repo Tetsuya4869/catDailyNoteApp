@@ -108,7 +108,7 @@ export default function SettingsScreen() {
           <Text style={styles.optionEmoji}>👤</Text>
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>
-              {user?.user_metadata?.full_name || user?.email || 'ユーザー'}
+              {user?.displayName || user?.email || 'ユーザー'}
             </Text>
             {user?.email && (
               <Text style={styles.userEmail} numberOfLines={1}>

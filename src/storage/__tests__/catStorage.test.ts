@@ -6,15 +6,20 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-jest.mock('../../lib/supabase', () => ({
-  supabase: {
-    from: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    upsert: jest.fn().mockResolvedValue({ error: null }),
-    delete: jest.fn().mockReturnThis(),
-  },
+jest.mock('../../lib/firebase', () => ({
+  db: {},
+  auth: {},
+  storage: {},
+}));
+
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(),
+  doc: jest.fn(),
+  query: jest.fn(),
+  where: jest.fn(),
+  getDocs: jest.fn(),
+  setDoc: jest.fn(),
+  deleteDoc: jest.fn(),
 }));
 
 jest.mock('../../lib/syncService', () => ({

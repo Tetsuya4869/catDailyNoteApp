@@ -23,7 +23,7 @@ npx tsc --noEmit   # TypeScript 型チェック
 - **React Navigation** v6
   - `@react-navigation/native-stack` — スタックナビゲーション
   - `@react-navigation/bottom-tabs` — 4タブ + 中央 FAB
-- **Supabase** — Google OAuth 認証・PostgreSQL(RLS)・Storage（写真）
+- **Firebase** — Auth（Google ログイン）・Cloud Firestore・Cloud Storage（写真）
 - **@react-native-community/netinfo** — オンライン/オフライン検知
 - **expo-image-picker** — 写真ライブラリへのアクセス
 - **expo-image-manipulator** — アップロード前の写真リサイズ（長辺1920px）
@@ -33,10 +33,11 @@ npx tsc --noEmit   # TypeScript 型チェック
 
 ## データ同期（オフラインファースト）
 
-- 各 storage 関数は `userId` を受け取り、オンライン時は Supabase と同期、オフライン時は AsyncStorage キャッシュを使用
+- 各 storage 関数は `userId` を受け取り、オンライン時は Firestore と同期、オフライン時は AsyncStorage キャッシュを使用
 - オフライン中の変更は pending ops キューに積まれ、オンライン復帰時に `SyncStatusBanner` が自動同期
-- 初回ログイン時に `src/lib/migration.ts` がローカルデータを Supabase へ移行
-- SQL は `supabase/migrations/` を Supabase Dashboard で実行
+- 初回ログイン時に `src/lib/migration.ts` がローカルデータを Firestore へ移行
+- Firestore は各ドキュメントの `userId` フィールドで所有者を管理（`firebase/firestore.rules` で強制）
+- 写真は Firebase Storage にアップロードし、ダウンロード URL を `photoUri` として保存
 
 ## アーキテクチャ
 
@@ -68,16 +69,16 @@ src/
 │   └── SyncStatusBanner.tsx   # オフライン/同期中/同期完了バナー + 自動同期
 ├── constants/theme.ts         # カラーパレット（テラコッタ/クリーム）、spacing、borderRadius
 ├── contexts/
-│   ├── AuthContext.tsx        # Supabase Google OAuth・セッション管理
+│   ├── AuthContext.tsx        # Firebase Auth（Google ログイン）・セッション管理
 │   ├── CatContext.tsx         # 猫一覧・選択状態のグローバル管理
 │   ├── SnackbarContext.tsx    # スナックバー（削除Undo等）
 │   └── ThemeContext.tsx       # ライト/ダーク/システムテーマ
 ├── lib/
-│   ├── supabase.ts            # Supabase クライアント
-│   ├── database.types.ts      # DB 行型（DbCat, DbDiaryEntry 等）
-│   ├── syncService.ts         # isOnline、App↔DB マッパー、型検証
-│   ├── photoStorage.ts        # Supabase Storage への写真アップロード
-│   └── migration.ts           # 初回ログイン時のローカル→Supabase 移行
+│   ├── firebase.ts            # Firebase 初期化（Auth/Firestore/Storage）
+│   ├── database.types.ts      # Firestore ドキュメント型（DbCat 等）+ COLLECTIONS
+│   ├── syncService.ts         # isOnline、App↔Firestore マッパー、型検証
+│   ├── photoStorage.ts        # Firebase Storage への写真アップロード
+│   └── migration.ts           # 初回ログイン時のローカル→Firestore 移行
 ├── navigation/types.ts        # RootStackParamList, TabParamList
 ├── screens/
 │   ├── LoginScreen.tsx        # Google ログイン
@@ -91,7 +92,7 @@ src/
 │   ├── SettingsScreen.tsx     # 設定
 │   └── StatsScreen.tsx        # 統計
 ├── storage/
-│   ├── catStorage.ts          # 猫 CRUD（Supabase 同期 + キャッシュ）
+│   ├── catStorage.ts          # 猫 CRUD（Firestore 同期 + キャッシュ）
 │   ├── diaryStorage.ts        # 日記 CRUD（同上）
 │   ├── healthStorage.ts       # 健康記録・予定 CRUD（同上）
 │   ├── settingsStorage.ts     # 設定の永続化（ローカルのみ）
@@ -102,7 +103,7 @@ src/
     ├── export.ts              # データエクスポート/インポート
     ├── image.ts               # resizeImage（アップロード前圧縮）
     └── notifications.ts       # 日記リマインダー・予定通知
-supabase/migrations/           # テーブル・RLS・Storage バケット定義 SQL
+firebase/                      # Firestore / Storage セキュリティルール
 App.tsx                        # ThemeProvider > AuthProvider > CatProvider > Navigation
 ```
 

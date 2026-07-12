@@ -11,34 +11,34 @@
 
 ```mermaid
 flowchart LR
-    subgraph A["案A: ローカルのみ（推奨）"]
+    subgraph A["案A: ローカルのみ"]
         A1[端末内完結]
         A2[バックエンド不要]
         A3[完全無料]
     end
     
-    subgraph B["案B: クラウド同期"]
-        B1[Supabase Free]
+    subgraph B["案B: クラウド同期（現在の実装）"]
+        B1[Firebase Spark Free]
         B2[複数端末同期]
         B3[無料枠内]
     end
     
-    A -->|シンプル| 推奨
-    B -->|将来拡張| オプション
+    A -->|シンプル| オフライン専用
+    B -->|採用| 現行構成
 ```
 
-| 項目 | 案A: ローカルのみ | 案B: Supabase Free |
+| 項目 | 案A: ローカルのみ | 案B: Firebase Spark（現行） |
 |------|-------------------|---------------------|
 | 月額コスト | **$0** | **$0** |
 | 複数端末同期 | ✗ | ✓ |
 | データバックアップ | 手動エクスポート | 自動クラウド保存 |
-| オフライン動作 | ✓ 完全対応 | ✓ 対応 |
+| オフライン動作 | ✓ 完全対応 | ✓ 対応（キャッシュ + pending ops） |
 | セットアップ難易度 | なし | 低（30分程度） |
 | 推奨ユーザー | 1端末利用者 | 複数端末/家族共有 |
 
 ---
 
-## 3. 案A: ローカルのみ（現在の実装・推奨）
+## 3. 案A: ローカルのみ（オフラインフォールバック）
 
 ### 3.1 アーキテクチャ
 
@@ -129,9 +129,9 @@ eas build --platform ios --profile preview
 
 ---
 
-## 4. 案B: Supabase Free（将来オプション）
+## 4. 案B: Firebase Spark Free（現在の実装）
 
-複数端末同期や自動バックアップが必要になった場合の構成。
+Google ログイン + Firestore + Cloud Storage による複数端末同期構成。
 
 ### 4.1 アーキテクチャ
 
@@ -140,50 +140,48 @@ flowchart TB
     subgraph Devices["端末"]
         iOS[iOS]
         Android[Android]
+        Cache[(AsyncStorage<br/>キャッシュ + pending ops)]
     end
     
-    subgraph Supabase["Supabase Free Tier"]
-        Auth[Auth<br/>認証]
-        DB[(PostgreSQL<br/>500MB)]
-        Storage[Storage<br/>1GB]
+    subgraph Firebase["Firebase Spark (無料)"]
+        Auth[Firebase Auth<br/>Google ログイン]
+        DB[(Cloud Firestore<br/>1GiB)]
+        Storage[Cloud Storage<br/>写真]
     end
     
+    iOS --> Cache
+    Android --> Cache
     iOS --> Auth
     Android --> Auth
     Auth --> DB
     Auth --> Storage
 ```
 
-### 4.2 無料枠
+- オンライン時: Firestore に読み書きし、結果を AsyncStorage にキャッシュ
+- オフライン時: キャッシュから読み、変更は pending ops キューへ
+- オンライン復帰時: `SyncStatusBanner` が pending ops を自動同期
+
+### 4.2 無料枠（Spark プラン）
 
 | リソース | 無料枠 | 数人での消費目安 |
 |----------|--------|------------------|
-| Database | 500MB | 〜1%使用（5MB） |
-| Storage | 1GB | 〜10%使用（100MB） |
-| Auth | 50,000 MAU | 〜0.01%使用 |
-| API | 500K/月 | 〜1%使用 |
+| Firestore 保存 | 1GiB | 〜1%使用 |
+| Firestore 読取 | 50,000/日 | 〜1%使用 |
+| Firestore 書込 | 20,000/日 | 〜1%使用 |
+| Cloud Storage | 5GB | 〜2%使用 |
+| Auth | 無制限（Google） | — |
 
-**結論**: 数人なら無料枠の1%も使わない
+**結論**: 数人なら無料枠の数%も使わない
 
-### 4.3 移行手順（将来必要時）
+### 4.3 セットアップ手順
 
-```mermaid
-flowchart LR
-    A[案A: ローカル] -->|必要時| B[Supabase登録]
-    B --> C[DB作成]
-    C --> D[認証設定]
-    D --> E[アプリ改修]
-    E --> F[既存データ移行]
-```
-
-1. Supabaseアカウント作成（無料）
-2. プロジェクト作成
-3. `@supabase/supabase-js` 追加
-4. 認証UI追加
-5. ストレージAPIをSupabaseに切り替え
-6. 既存AsyncStorageデータをインポート
-
-**改修工数**: 約2-3日
+1. [Firebase Console](https://console.firebase.google.com/) でプロジェクト作成（無料）
+2. Authentication → Google プロバイダを有効化
+3. Firestore Database を作成し `firebase/firestore.rules` を適用
+4. Storage を有効化し `firebase/storage.rules` を適用
+5. Web アプリを追加し、構成値を `.env`（`.env.example` 参照）に設定
+6. Google Cloud Console の OAuth クライアント ID を `.env` に設定
+7. `npm start` → ログイン → 既存ローカルデータは初回ログイン時に自動移行
 
 ---
 
@@ -403,16 +401,16 @@ flowchart LR
 ## 7. FAQ
 
 ### Q: 端末を変えたらデータは消える？
-**A**: はい。エクスポート機能で事前にバックアップし、新端末でインポートしてください。
+**A**: いいえ。同じ Google アカウントでログインすれば Firestore から復元されます。
 
 ### Q: 家族で猫の記録を共有したい
-**A**: 案Bへの移行を検討。または、エクスポートしたJSONファイルを定期的に共有する運用でも可。
+**A**: 現状は 1 アカウント = 1 ユーザーのデータ。同じ Google アカウントを共用するか、将来的に共有機能（家族グループ）を追加予定。
 
 ### Q: iPhoneで使いたいが$99払いたくない
 **A**: Expo Goアプリ経由で利用可能。App Storeには出せないが、機能は同じ。
 
 ### Q: 将来ユーザーが増えたら？
-**A**: 案Bに移行。Supabase無料枠は50,000MAUまで対応。それ以上なら$25/月〜。
+**A**: Firebase Spark 無料枠で数百人規模まで対応可能。超えたら Blaze（従量課金）へ移行。
 
 ---
 
@@ -428,8 +426,9 @@ flowchart LR
 | エクスポート | ✅ 実装済 | JSON形式 |
 | インポート | ✅ 実装済 | JSON形式 |
 | ダークモード | ✅ 実装済 | システム連動 |
-| リマインダー | ✅ 実装済 | 通知 |
-| **認証** | ❌ 未実装 | 案Aでは不要 |
-| **クラウド同期** | ❌ 未実装 | 案Aでは不要 |
+| リマインダー | ✅ 実装済 | 日記リマインダー + 予定通知 |
+| **認証** | ✅ 実装済 | Firebase Auth（Google ログイン） |
+| **クラウド同期** | ✅ 実装済 | Firestore + オフラインキャッシュ + 自動同期 |
+| **写真クラウド保存** | ✅ 実装済 | Firebase Storage（アップロード前に自動リサイズ） |
 
-**結論**: 案A（ローカルのみ）で必要な機能はすべて実装済み。すぐに利用開始可能。
+**結論**: 案B（Firebase 同期）が実装済み。Firebase プロジェクトを設定すればすぐに利用開始可能。

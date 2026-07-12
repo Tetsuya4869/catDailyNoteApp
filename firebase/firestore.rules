@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// 各ドキュメントは userId フィールドで所有者を持ち、
+// 本人のみ読み書きできる（Supabase の RLS 相当）。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner() {
+      return request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+    function isCreatingOwn() {
+      return request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    match /cats/{catId} {
+      allow read, delete: if isOwner();
+      allow create: if isCreatingOwn();
+      allow update: if isOwner() && isCreatingOwn();
+    }
+
+    match /diaryEntries/{entryId} {
+      allow read, delete: if isOwner();
+      allow create: if isCreatingOwn();
+      allow update: if isOwner() && isCreatingOwn();
+    }
+
+    match /healthRecords/{recordId} {
+      allow read, delete: if isOwner();
+      allow create: if isCreatingOwn();
+      allow update: if isOwner() && isCreatingOwn();
+    }
+
+    match /appointments/{appointmentId} {
+      allow read, delete: if isOwner();
+      allow create: if isCreatingOwn();
+      allow update: if isOwner() && isCreatingOwn();
+    }
+  }
+}

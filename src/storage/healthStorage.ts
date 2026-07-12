@@ -1,8 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore';
 import { HealthRecord, Appointment } from '../types';
-import { supabase } from '../lib/supabase';
-import { isOnline, healthToDb, dbToHealth, appointmentToDb, dbToAppointment } from '../lib/syncService';
-import { DbHealthRecord, DbAppointment } from '../lib/database.types';
+import { db } from '../lib/firebase';
+import {
+  isOnline,
+  healthToDb,
+  dbToHealth,
+  appointmentToDb,
+  dbToAppointment,
+} from '../lib/syncService';
+import { COLLECTIONS } from '../lib/database.types';
 
 const HEALTH_STORAGE_KEY = '@cat_diary_health';
 const APPOINTMENT_STORAGE_KEY = '@cat_diary_appointments';
@@ -96,15 +111,17 @@ export async function getHealthRecords(userId: string): Promise<HealthRecord[]> 
 
   if (online) {
     try {
-      const { data, error } = await supabase
-        .from('health_records')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-
-      const records = (data as DbHealthRecord[] || []).map(dbToHealth);
+      const snapshot = await getDocs(
+        query(
+          collection(db, COLLECTIONS.healthRecords),
+          where('userId', '==', userId)
+        )
+      );
+      const records = snapshot.docs
+        .map((d) => dbToHealth(d.data()))
+        .sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
       await setCachedHealthRecords(records);
       return records;
     } catch (err) {
@@ -139,9 +156,10 @@ export async function saveHealthRecord(record: HealthRecord, userId: string): Pr
 
   if (online) {
     try {
-      const dbRecord = healthToDb(record, userId);
-      const { error } = await supabase.from('health_records').upsert(dbRecord);
-      if (error) throw error;
+      await setDoc(
+        doc(db, COLLECTIONS.healthRecords, record.id),
+        healthToDb(record, userId)
+      );
     } catch (err) {
       console.error('Failed to save health record:', err);
       await addHealthPendingOp({ type: 'upsert', record, timestamp: new Date().toISOString() });
@@ -161,8 +179,7 @@ export async function deleteHealthRecord(id: string, userId: string): Promise<vo
 
   if (online) {
     try {
-      const { error } = await supabase.from('health_records').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, COLLECTIONS.healthRecords, id));
     } catch (err) {
       console.error('Failed to delete health record:', err);
       if (record) {
@@ -191,15 +208,17 @@ export async function getAppointments(userId: string): Promise<Appointment[]> {
 
   if (online) {
     try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: true });
-
-      if (error) throw error;
-
-      const appointments = (data as DbAppointment[] || []).map(dbToAppointment);
+      const snapshot = await getDocs(
+        query(
+          collection(db, COLLECTIONS.appointments),
+          where('userId', '==', userId)
+        )
+      );
+      const appointments = snapshot.docs
+        .map((d) => dbToAppointment(d.data()))
+        .sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
       await setCachedAppointments(appointments);
       return appointments;
     } catch (err) {
@@ -235,9 +254,10 @@ export async function saveAppointment(appointment: Appointment, userId: string):
 
   if (online) {
     try {
-      const dbAppt = appointmentToDb(appointment, userId);
-      const { error } = await supabase.from('appointments').upsert(dbAppt);
-      if (error) throw error;
+      await setDoc(
+        doc(db, COLLECTIONS.appointments, appointment.id),
+        appointmentToDb(appointment, userId)
+      );
     } catch (err) {
       console.error('Failed to save appointment:', err);
       await addApptPendingOp({ type: 'upsert', appointment, timestamp: new Date().toISOString() });
@@ -257,8 +277,7 @@ export async function deleteAppointment(id: string, userId: string): Promise<voi
 
   if (online) {
     try {
-      const { error } = await supabase.from('appointments').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, COLLECTIONS.appointments, id));
     } catch (err) {
       console.error('Failed to delete appointment:', err);
       if (appointment) {
@@ -275,17 +294,19 @@ export async function syncPendingHealthOps(userId: string): Promise<void> {
   healthSyncInProgress = true;
 
   try {
+    // 健康記録の pending ops
     const healthJson = await AsyncStorage.getItem(PENDING_HEALTH_OPS_KEY);
     if (healthJson) {
       const ops: HealthPendingOp[] = JSON.parse(healthJson);
-
       for (const op of ops) {
         try {
           if (op.type === 'delete') {
-            await supabase.from('health_records').delete().eq('id', op.record.id);
+            await deleteDoc(doc(db, COLLECTIONS.healthRecords, op.record.id));
           } else {
-            const dbRecord = healthToDb(op.record, userId);
-            await supabase.from('health_records').upsert(dbRecord);
+            await setDoc(
+              doc(db, COLLECTIONS.healthRecords, op.record.id),
+              healthToDb(op.record, userId)
+            );
           }
           await removeHealthPendingOpById(op.id);
         } catch (err) {
@@ -294,17 +315,19 @@ export async function syncPendingHealthOps(userId: string): Promise<void> {
       }
     }
 
+    // 予定の pending ops
     const apptJson = await AsyncStorage.getItem(PENDING_APPT_OPS_KEY);
     if (apptJson) {
       const ops: ApptPendingOp[] = JSON.parse(apptJson);
-
       for (const op of ops) {
         try {
           if (op.type === 'delete') {
-            await supabase.from('appointments').delete().eq('id', op.appointment.id);
+            await deleteDoc(doc(db, COLLECTIONS.appointments, op.appointment.id));
           } else {
-            const dbAppt = appointmentToDb(op.appointment, userId);
-            await supabase.from('appointments').upsert(dbAppt);
+            await setDoc(
+              doc(db, COLLECTIONS.appointments, op.appointment.id),
+              appointmentToDb(op.appointment, userId)
+            );
           }
           await removeApptPendingOpById(op.id);
         } catch (err) {

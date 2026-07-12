@@ -1,9 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore';
 import { DiaryEntry } from '../types';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
 import { isOnline, diaryToDb, dbToDiary } from '../lib/syncService';
 import { uploadPhoto } from '../lib/photoStorage';
-import { DbDiaryEntry } from '../lib/database.types';
+import { COLLECTIONS } from '../lib/database.types';
 
 const DIARY_STORAGE_KEY = '@cat_diary_entries';
 const PENDING_DIARY_OPS_KEY = '@cat_diary_pending_diary_ops';
@@ -20,7 +29,11 @@ type PendingOp = {
 async function getCachedEntries(): Promise<DiaryEntry[]> {
   const json = await AsyncStorage.getItem(DIARY_STORAGE_KEY);
   if (!json) return [];
-  return JSON.parse(json);
+  try {
+    return JSON.parse(json);
+  } catch {
+    return [];
+  }
 }
 
 async function setCachedEntries(entries: DiaryEntry[]): Promise<void> {
@@ -47,20 +60,34 @@ async function removePendingOpById(opId: string): Promise<void> {
   await AsyncStorage.setItem(PENDING_DIARY_OPS_KEY, JSON.stringify(filtered));
 }
 
+// ローカル写真があれば Storage にアップロードし、URL を差し替えた entry を返す
+async function withUploadedPhoto(
+  entry: DiaryEntry,
+  userId: string
+): Promise<DiaryEntry> {
+  if (entry.photoUri && entry.photoUri.startsWith('file://')) {
+    const url = await uploadPhoto(userId, 'diary', entry.id, entry.photoUri);
+    if (url) return { ...entry, photoUri: url };
+  }
+  return entry;
+}
+
 export async function getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
   const online = await isOnline();
 
   if (online) {
     try {
-      const { data, error } = await supabase
-        .from('diary_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-
-      const entries = (data as DbDiaryEntry[] || []).map(dbToDiary);
+      const snapshot = await getDocs(
+        query(
+          collection(db, COLLECTIONS.diaryEntries),
+          where('userId', '==', userId)
+        )
+      );
+      const entries = snapshot.docs
+        .map((d) => dbToDiary(d.data()))
+        .sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
       await setCachedEntries(entries);
       return entries;
     } catch (err) {
@@ -88,16 +115,11 @@ export async function saveDiaryEntry(entry: DiaryEntry, userId: string): Promise
 
   if (online) {
     try {
-      let photoPath: string | null = null;
-      if (entry.photoUri && entry.photoUri.startsWith('file://')) {
-        photoPath = await uploadPhoto(userId, 'diary', entry.id, entry.photoUri);
-      }
-
-      const dbEntry = diaryToDb(updatedEntry, userId);
-      const insertData = photoPath ? { ...dbEntry, photo_path: photoPath } : dbEntry;
-
-      const { error } = await supabase.from('diary_entries').upsert(insertData);
-      if (error) throw error;
+      const toSave = await withUploadedPhoto(updatedEntry, userId);
+      await setDoc(
+        doc(db, COLLECTIONS.diaryEntries, entry.id),
+        diaryToDb(toSave, userId)
+      );
     } catch (err) {
       console.error('Failed to save diary entry:', err);
       await addPendingOp({ type: 'upsert', entry: updatedEntry, timestamp: new Date().toISOString() });
@@ -117,8 +139,7 @@ export async function deleteDiaryEntry(id: string, userId: string): Promise<void
 
   if (online) {
     try {
-      const { error } = await supabase.from('diary_entries').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, COLLECTIONS.diaryEntries, id));
     } catch (err) {
       console.error('Failed to delete diary entry:', err);
       if (entry) {
@@ -169,15 +190,13 @@ export async function syncPendingDiaryOps(userId: string): Promise<void> {
     for (const op of ops) {
       try {
         if (op.type === 'delete') {
-          await supabase.from('diary_entries').delete().eq('id', op.entry.id);
+          await deleteDoc(doc(db, COLLECTIONS.diaryEntries, op.entry.id));
         } else {
-          let photoPath: string | null = null;
-          if (op.entry.photoUri && op.entry.photoUri.startsWith('file://')) {
-            photoPath = await uploadPhoto(userId, 'diary', op.entry.id, op.entry.photoUri);
-          }
-          const dbEntry = diaryToDb(op.entry, userId);
-          const insertData = photoPath ? { ...dbEntry, photo_path: photoPath } : dbEntry;
-          await supabase.from('diary_entries').upsert(insertData);
+          const toSave = await withUploadedPhoto(op.entry, userId);
+          await setDoc(
+            doc(db, COLLECTIONS.diaryEntries, op.entry.id),
+            diaryToDb(toSave, userId)
+          );
         }
         await removePendingOpById(op.id);
       } catch (err) {

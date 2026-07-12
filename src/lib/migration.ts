@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 import { Cat, DiaryEntry, HealthRecord, Appointment } from '../types';
 import { catToDb, diaryToDb, healthToDb, appointmentToDb } from './syncService';
 import { uploadPhoto } from './photoStorage';
+import { COLLECTIONS } from './database.types';
 
 const MIGRATION_DONE_KEY = '@cat_diary_migration_done';
 
@@ -36,21 +38,18 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
   const migrated = { cats: 0, diary: 0, health: 0, appointments: 0 };
 
   try {
-    // 1. Migrate cats first (other entities reference them)
+    // 1. 猫を先に移行（他エンティティが参照するため）
     const catsJson = await AsyncStorage.getItem(LEGACY_CATS_KEY);
     if (catsJson) {
       const cats: Cat[] = JSON.parse(catsJson);
       for (const cat of cats) {
         try {
-          let photoPath: string | null = null;
+          let toSave = cat;
           if (cat.photoUri && cat.photoUri.startsWith('file://')) {
-            photoPath = await uploadPhoto(userId, 'cats', cat.id, cat.photoUri);
+            const url = await uploadPhoto(userId, 'cats', cat.id, cat.photoUri);
+            if (url) toSave = { ...cat, photoUri: url };
           }
-          const dbCat = catToDb(cat, userId);
-          const insertData = photoPath ? { ...dbCat, photo_path: photoPath } : dbCat;
-
-          const { error } = await supabase.from('cats').upsert(insertData);
-          if (error) throw error;
+          await setDoc(doc(db, COLLECTIONS.cats, cat.id), catToDb(toSave, userId));
           migrated.cats++;
         } catch (err) {
           errors.push(`Cat ${cat.name}: ${err}`);
@@ -58,21 +57,21 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
       }
     }
 
-    // 2. Migrate diary entries
+    // 2. 日記を移行
     const diaryJson = await AsyncStorage.getItem(LEGACY_DIARY_KEY);
     if (diaryJson) {
       const entries: DiaryEntry[] = JSON.parse(diaryJson);
       for (const entry of entries) {
         try {
-          let photoPath: string | null = null;
+          let toSave = entry;
           if (entry.photoUri && entry.photoUri.startsWith('file://')) {
-            photoPath = await uploadPhoto(userId, 'diary', entry.id, entry.photoUri);
+            const url = await uploadPhoto(userId, 'diary', entry.id, entry.photoUri);
+            if (url) toSave = { ...entry, photoUri: url };
           }
-          const dbEntry = diaryToDb(entry, userId);
-          const insertData = photoPath ? { ...dbEntry, photo_path: photoPath } : dbEntry;
-
-          const { error } = await supabase.from('diary_entries').upsert(insertData);
-          if (error) throw error;
+          await setDoc(
+            doc(db, COLLECTIONS.diaryEntries, entry.id),
+            diaryToDb(toSave, userId)
+          );
           migrated.diary++;
         } catch (err) {
           errors.push(`Diary "${entry.title}": ${err}`);
@@ -80,15 +79,16 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
       }
     }
 
-    // 3. Migrate health records
+    // 3. 健康記録を移行
     const healthJson = await AsyncStorage.getItem(LEGACY_HEALTH_KEY);
     if (healthJson) {
       const records: HealthRecord[] = JSON.parse(healthJson);
       for (const record of records) {
         try {
-          const dbRecord = healthToDb(record, userId);
-          const { error } = await supabase.from('health_records').upsert(dbRecord);
-          if (error) throw error;
+          await setDoc(
+            doc(db, COLLECTIONS.healthRecords, record.id),
+            healthToDb(record, userId)
+          );
           migrated.health++;
         } catch (err) {
           errors.push(`Health record ${record.id}: ${err}`);
@@ -96,15 +96,16 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
       }
     }
 
-    // 4. Migrate appointments
+    // 4. 予定を移行
     const apptsJson = await AsyncStorage.getItem(LEGACY_APPOINTMENTS_KEY);
     if (apptsJson) {
       const appts: Appointment[] = JSON.parse(apptsJson);
       for (const appt of appts) {
         try {
-          const dbAppt = appointmentToDb(appt, userId);
-          const { error } = await supabase.from('appointments').upsert(dbAppt);
-          if (error) throw error;
+          await setDoc(
+            doc(db, COLLECTIONS.appointments, appt.id),
+            appointmentToDb(appt, userId)
+          );
           migrated.appointments++;
         } catch (err) {
           errors.push(`Appointment "${appt.title}": ${err}`);

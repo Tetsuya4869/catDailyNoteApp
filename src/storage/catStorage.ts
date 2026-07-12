@@ -1,9 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore';
 import { Cat } from '../types';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/firebase';
 import { isOnline, catToDb, dbToCat } from '../lib/syncService';
 import { uploadPhoto } from '../lib/photoStorage';
-import { DbCat } from '../lib/database.types';
+import { COLLECTIONS } from '../lib/database.types';
 
 const CAT_STORAGE_KEY = '@cat_diary_cats';
 const PENDING_CAT_OPS_KEY = '@cat_diary_pending_cat_ops';
@@ -47,24 +56,33 @@ async function removePendingOpById(opId: string): Promise<void> {
   await AsyncStorage.setItem(PENDING_CAT_OPS_KEY, JSON.stringify(filtered));
 }
 
+// ローカル写真があれば Storage にアップロードし、URL を差し替えた Cat を返す
+async function withUploadedPhoto(cat: Cat, userId: string): Promise<Cat> {
+  if (cat.photoUri && cat.photoUri.startsWith('file://')) {
+    const url = await uploadPhoto(userId, 'cats', cat.id, cat.photoUri);
+    if (url) return { ...cat, photoUri: url };
+  }
+  return cat;
+}
+
 export async function getCats(userId: string): Promise<Cat[]> {
   const online = await isOnline();
 
   if (online) {
     try {
-      const { data, error } = await supabase
-        .from('cats')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const cats = (data as DbCat[] || []).map(dbToCat);
+      const snapshot = await getDocs(
+        query(collection(db, COLLECTIONS.cats), where('userId', '==', userId))
+      );
+      const cats = snapshot.docs
+        .map((d) => dbToCat(d.data()))
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
       await setCachedCats(cats);
       return cats;
     } catch (err) {
-      console.error('Failed to fetch cats from Supabase:', err);
+      console.error('Failed to fetch cats from Firestore:', err);
     }
   }
 
@@ -86,18 +104,10 @@ export async function saveCat(cat: Cat, userId: string): Promise<void> {
 
   if (online) {
     try {
-      let photoPath: string | null = null;
-      if (cat.photoUri && cat.photoUri.startsWith('file://')) {
-        photoPath = await uploadPhoto(userId, 'cats', cat.id, cat.photoUri);
-      }
-
-      const dbCat = catToDb(cat, userId);
-      const insertData = photoPath ? { ...dbCat, photo_path: photoPath } : dbCat;
-
-      const { error } = await supabase.from('cats').upsert(insertData);
-      if (error) throw error;
+      const toSave = await withUploadedPhoto(cat, userId);
+      await setDoc(doc(db, COLLECTIONS.cats, cat.id), catToDb(toSave, userId));
     } catch (err) {
-      console.error('Failed to save cat to Supabase:', err);
+      console.error('Failed to save cat to Firestore:', err);
       await addPendingOp({ type: 'upsert', cat, timestamp: new Date().toISOString() });
     }
   } else {
@@ -115,10 +125,9 @@ export async function deleteCat(id: string, userId: string): Promise<void> {
 
   if (online) {
     try {
-      const { error } = await supabase.from('cats').delete().eq('id', id);
-      if (error) throw error;
+      await deleteDoc(doc(db, COLLECTIONS.cats, id));
     } catch (err) {
-      console.error('Failed to delete cat from Supabase:', err);
+      console.error('Failed to delete cat from Firestore:', err);
       if (cat) {
         await addPendingOp({ type: 'delete', cat, timestamp: new Date().toISOString() });
       }
@@ -146,15 +155,13 @@ export async function syncPendingCatOps(userId: string): Promise<void> {
     for (const op of ops) {
       try {
         if (op.type === 'delete') {
-          await supabase.from('cats').delete().eq('id', op.cat.id);
+          await deleteDoc(doc(db, COLLECTIONS.cats, op.cat.id));
         } else {
-          let photoPath: string | null = null;
-          if (op.cat.photoUri && op.cat.photoUri.startsWith('file://')) {
-            photoPath = await uploadPhoto(userId, 'cats', op.cat.id, op.cat.photoUri);
-          }
-          const dbCat = catToDb(op.cat, userId);
-          const insertData = photoPath ? { ...dbCat, photo_path: photoPath } : dbCat;
-          await supabase.from('cats').upsert(insertData);
+          const toSave = await withUploadedPhoto(op.cat, userId);
+          await setDoc(
+            doc(db, COLLECTIONS.cats, op.cat.id),
+            catToDb(toSave, userId)
+          );
         }
         await removePendingOpById(op.id);
       } catch (err) {
