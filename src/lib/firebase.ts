@@ -1,14 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import * as firebaseAuth from 'firebase/auth';
-import { initializeAuth, Persistence } from 'firebase/auth';
+import { initializeAuth, getAuth, Auth, Persistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 // getReactNativePersistence は react-native ビルドにのみ存在し、
 // 公開型定義に含まれていないため型を補って参照する
 const { getReactNativePersistence } = firebaseAuth as unknown as {
-  getReactNativePersistence: (storage: unknown) => Persistence;
+  getReactNativePersistence?: (storage: unknown) => Persistence;
 };
 
 const firebaseConfig = {
@@ -23,10 +23,18 @@ const firebaseConfig = {
 // Fast Refresh で initializeApp が二重に走らないようにする
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// React Native ではセッション永続化先を AsyncStorage に指定する
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+// React Native では AsyncStorage 永続化で initializeAuth する。
+// getReactNativePersistence が無い環境（Web プレビュー等）では
+// 既定の永続化で getAuth にフォールバックする。
+let authInstance: Auth;
+if (typeof getReactNativePersistence === 'function') {
+  authInstance = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} else {
+  authInstance = getAuth(app);
+}
 
+export const auth = authInstance;
 export const db = getFirestore(app);
 export const storage = getStorage(app);
