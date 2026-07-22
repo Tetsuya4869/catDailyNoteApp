@@ -32,3 +32,4 @@ yarn-error.*
 
 # TypeScript
 *.tsbuildinfo
+dist-ios/

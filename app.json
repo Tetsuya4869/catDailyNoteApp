@@ -18,7 +18,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.catdailynote.app",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["catdailynote"]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -36,6 +43,12 @@
         "expo-notifications",
         {
           "color": "#FF9966"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "猫の写真を日記やプロフィールに追加するために写真ライブラリへのアクセスを許可してください。"
         }
       ]
     ]
