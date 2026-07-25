@@ -79,8 +79,14 @@ export async function scheduleReminder(
 }
 
 export async function cancelReminder(): Promise<void> {
-  // 予定通知を残すため、毎日のリマインダーだけをキャンセルする
-  await Notifications.cancelScheduledNotificationAsync(DAILY_REMINDER_ID);
+  // 予定通知を残すため、毎日のリマインダーだけをキャンセルする。
+  // 未登録・非対応環境では失敗しうるが、後続の再スケジュールを
+  // 止めてはいけないので握りつぶす。
+  try {
+    await Notifications.cancelScheduledNotificationAsync(DAILY_REMINDER_ID);
+  } catch (err) {
+    console.warn('Failed to cancel daily reminder:', err);
+  }
 }
 
 // ===== 予定（通院・ワクチン）の通知 =====
@@ -123,7 +129,12 @@ export async function scheduleAppointmentNotification(
 export async function cancelAppointmentNotification(
   appointmentId: string
 ): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(
-    appointmentNotificationId(appointmentId)
-  );
+  // 予定の削除・完了に伴う後始末。失敗しても本処理は続行させる。
+  try {
+    await Notifications.cancelScheduledNotificationAsync(
+      appointmentNotificationId(appointmentId)
+    );
+  } catch (err) {
+    console.warn('Failed to cancel appointment notification:', err);
+  }
 }

@@ -13,6 +13,7 @@ import {
   BottomTabBarButtonProps,
 } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import CatsScreen from './src/screens/CatsScreen';
@@ -250,13 +251,17 @@ function AppNavigator() {
 }
 
 export default function App() {
+  // SnackbarProvider / SyncStatusBanner が useSafeAreaInsets を使うため、
+  // ナビゲータの外側にも safe area を提供する必要がある
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <CatProvider>
-          <AppNavigator />
-        </CatProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <CatProvider>
+            <AppNavigator />
+          </CatProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

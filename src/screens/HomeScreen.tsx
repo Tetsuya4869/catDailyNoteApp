@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../utils/haptics';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import {

@@ -13,7 +13,7 @@ import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const { signInWithGoogle, loading } = useAuth();
+  const { signInWithGoogle, loading, isLocalMode } = useAuth();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (loading) {
@@ -39,13 +39,21 @@ export default function LoginScreen() {
           style={styles.googleButton}
           onPress={signInWithGoogle}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isLocalMode ? 'この端末だけで始める' : 'Googleでログイン'
+          }
         >
-          <Text style={styles.googleIcon}>G</Text>
-          <Text style={styles.googleButtonText}>Googleでログイン</Text>
+          <Text style={styles.googleIcon}>{isLocalMode ? '🐾' : 'G'}</Text>
+          <Text style={styles.googleButtonText}>
+            {isLocalMode ? 'この端末だけで始める' : 'Googleでログイン'}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          ログインすることで、利用規約とプライバシーポリシーに同意したものとみなされます。
+          {isLocalMode
+            ? 'Firebase が未設定のため、データはこの端末にのみ保存されます（クラウド同期なし）。'
+            : 'ログインすることで、利用規約とプライバシーポリシーに同意したものとみなされます。'}
         </Text>
       </View>
     </View>

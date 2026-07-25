@@ -2,7 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Cat, DiaryEntry, HealthRecord, Appointment } from '../types';
-import { catToDb, diaryToDb, healthToDb, appointmentToDb } from './syncService';
+import {
+  catToDb,
+  diaryToDb,
+  healthToDb,
+  appointmentToDb,
+  withTimeout,
+} from './syncService';
 import { uploadPhoto } from './photoStorage';
 import { COLLECTIONS } from './database.types';
 
@@ -49,7 +55,9 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
             const url = await uploadPhoto(userId, 'cats', cat.id, cat.photoUri);
             if (url) toSave = { ...cat, photoUri: url };
           }
-          await setDoc(doc(db, COLLECTIONS.cats, cat.id), catToDb(toSave, userId));
+          await withTimeout(
+            setDoc(doc(db, COLLECTIONS.cats, cat.id), catToDb(toSave, userId))
+          );
           migrated.cats++;
         } catch (err) {
           errors.push(`Cat ${cat.name}: ${err}`);
@@ -68,9 +76,11 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
             const url = await uploadPhoto(userId, 'diary', entry.id, entry.photoUri);
             if (url) toSave = { ...entry, photoUri: url };
           }
-          await setDoc(
-            doc(db, COLLECTIONS.diaryEntries, entry.id),
-            diaryToDb(toSave, userId)
+          await withTimeout(
+            setDoc(
+              doc(db, COLLECTIONS.diaryEntries, entry.id),
+              diaryToDb(toSave, userId)
+            )
           );
           migrated.diary++;
         } catch (err) {
@@ -85,9 +95,11 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
       const records: HealthRecord[] = JSON.parse(healthJson);
       for (const record of records) {
         try {
-          await setDoc(
-            doc(db, COLLECTIONS.healthRecords, record.id),
-            healthToDb(record, userId)
+          await withTimeout(
+            setDoc(
+              doc(db, COLLECTIONS.healthRecords, record.id),
+              healthToDb(record, userId)
+            )
           );
           migrated.health++;
         } catch (err) {
@@ -102,9 +114,11 @@ export async function migrateLocalData(userId: string): Promise<MigrationResult>
       const appts: Appointment[] = JSON.parse(apptsJson);
       for (const appt of appts) {
         try {
-          await setDoc(
-            doc(db, COLLECTIONS.appointments, appt.id),
-            appointmentToDb(appt, userId)
+          await withTimeout(
+            setDoc(
+              doc(db, COLLECTIONS.appointments, appt.id),
+              appointmentToDb(appt, userId)
+            )
           );
           migrated.appointments++;
         } catch (err) {

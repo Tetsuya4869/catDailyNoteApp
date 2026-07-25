@@ -12,6 +12,7 @@ import { HealthRecord, Appointment } from '../types';
 import { db } from '../lib/firebase';
 import {
   isOnline,
+  withTimeout,
   healthToDb,
   dbToHealth,
   appointmentToDb,
@@ -111,10 +112,12 @@ export async function getHealthRecords(userId: string): Promise<HealthRecord[]> 
 
   if (online) {
     try {
-      const snapshot = await getDocs(
-        query(
-          collection(db, COLLECTIONS.healthRecords),
-          where('userId', '==', userId)
+      const snapshot = await withTimeout(
+        getDocs(
+          query(
+            collection(db, COLLECTIONS.healthRecords),
+            where('userId', '==', userId)
+          )
         )
       );
       const records = snapshot.docs
@@ -156,9 +159,11 @@ export async function saveHealthRecord(record: HealthRecord, userId: string): Pr
 
   if (online) {
     try {
-      await setDoc(
-        doc(db, COLLECTIONS.healthRecords, record.id),
-        healthToDb(record, userId)
+      await withTimeout(
+        setDoc(
+          doc(db, COLLECTIONS.healthRecords, record.id),
+          healthToDb(record, userId)
+        )
       );
     } catch (err) {
       console.error('Failed to save health record:', err);
@@ -179,7 +184,7 @@ export async function deleteHealthRecord(id: string, userId: string): Promise<vo
 
   if (online) {
     try {
-      await deleteDoc(doc(db, COLLECTIONS.healthRecords, id));
+      await withTimeout(deleteDoc(doc(db, COLLECTIONS.healthRecords, id)));
     } catch (err) {
       console.error('Failed to delete health record:', err);
       if (record) {
@@ -208,10 +213,12 @@ export async function getAppointments(userId: string): Promise<Appointment[]> {
 
   if (online) {
     try {
-      const snapshot = await getDocs(
-        query(
-          collection(db, COLLECTIONS.appointments),
-          where('userId', '==', userId)
+      const snapshot = await withTimeout(
+        getDocs(
+          query(
+            collection(db, COLLECTIONS.appointments),
+            where('userId', '==', userId)
+          )
         )
       );
       const appointments = snapshot.docs
@@ -254,9 +261,11 @@ export async function saveAppointment(appointment: Appointment, userId: string):
 
   if (online) {
     try {
-      await setDoc(
-        doc(db, COLLECTIONS.appointments, appointment.id),
-        appointmentToDb(appointment, userId)
+      await withTimeout(
+        setDoc(
+          doc(db, COLLECTIONS.appointments, appointment.id),
+          appointmentToDb(appointment, userId)
+        )
       );
     } catch (err) {
       console.error('Failed to save appointment:', err);
@@ -277,7 +286,7 @@ export async function deleteAppointment(id: string, userId: string): Promise<voi
 
   if (online) {
     try {
-      await deleteDoc(doc(db, COLLECTIONS.appointments, id));
+      await withTimeout(deleteDoc(doc(db, COLLECTIONS.appointments, id)));
     } catch (err) {
       console.error('Failed to delete appointment:', err);
       if (appointment) {
@@ -291,6 +300,8 @@ export async function deleteAppointment(id: string, userId: string): Promise<voi
 
 export async function syncPendingHealthOps(userId: string): Promise<void> {
   if (healthSyncInProgress) return;
+  // 同期先に到達できないときは試行しない
+  if (!(await isOnline())) return;
   healthSyncInProgress = true;
 
   try {
@@ -301,11 +312,15 @@ export async function syncPendingHealthOps(userId: string): Promise<void> {
       for (const op of ops) {
         try {
           if (op.type === 'delete') {
-            await deleteDoc(doc(db, COLLECTIONS.healthRecords, op.record.id));
+            await withTimeout(
+              deleteDoc(doc(db, COLLECTIONS.healthRecords, op.record.id))
+            );
           } else {
-            await setDoc(
-              doc(db, COLLECTIONS.healthRecords, op.record.id),
-              healthToDb(op.record, userId)
+            await withTimeout(
+              setDoc(
+                doc(db, COLLECTIONS.healthRecords, op.record.id),
+                healthToDb(op.record, userId)
+              )
             );
           }
           await removeHealthPendingOpById(op.id);
@@ -322,11 +337,15 @@ export async function syncPendingHealthOps(userId: string): Promise<void> {
       for (const op of ops) {
         try {
           if (op.type === 'delete') {
-            await deleteDoc(doc(db, COLLECTIONS.appointments, op.appointment.id));
+            await withTimeout(
+              deleteDoc(doc(db, COLLECTIONS.appointments, op.appointment.id))
+            );
           } else {
-            await setDoc(
-              doc(db, COLLECTIONS.appointments, op.appointment.id),
-              appointmentToDb(op.appointment, userId)
+            await withTimeout(
+              setDoc(
+                doc(db, COLLECTIONS.appointments, op.appointment.id),
+                appointmentToDb(op.appointment, userId)
+              )
             );
           }
           await removeApptPendingOpById(op.id);

@@ -13,8 +13,14 @@ npm start          # 開発サーバー起動（Expo Go でスキャン）
 npm test           # Jest テスト実行
 npm run android    # Android エミュレータ起動
 npm run ios        # iOS シミュレータ起動（macOS のみ）
+npm run web        # ブラウザで動作確認（Mac/実機なしで触れる）
 npx tsc --noEmit   # TypeScript 型チェック
 ```
+
+> **依存バージョンの注意**: Expo SDK 50 のプロジェクトです。`expo-*` パッケージを
+> 更新するときは必ず SDK 50 互換版を指定してください。SDK 5x 系を入れると
+> `expo-modules-core` の API 差異で起動時に `Super expression must either be
+> null or a function` が発生します。
 
 ## 技術スタック
 
@@ -38,6 +44,11 @@ npx tsc --noEmit   # TypeScript 型チェック
 - 初回ログイン時に `src/lib/migration.ts` がローカルデータを Firestore へ移行
 - Firestore は各ドキュメントの `userId` フィールドで所有者を管理（`firebase/firestore.rules` で強制）
 - 写真は Firebase Storage にアップロードし、ダウンロード URL を `photoUri` として保存
+- Firestore の読み書きはサーバー応答まで解決しないため、`syncService.withTimeout()`
+  で必ず打ち切る（未導入だと通信不達時に保存ボタンが固まったままになる）
+- **ローカルモード**: Firebase の環境変数が未設定のとき `isFirebaseConfigured` が
+  false になり、`isOnline()` が常に false を返す。ログインは端末内ユーザーで代替され、
+  データは AsyncStorage にのみ保存される（クラウド同期なしで一通り動作確認できる）
 
 ## アーキテクチャ
 
@@ -101,11 +112,17 @@ src/
 └── utils/
     ├── age.ts                 # formatCatAge（N歳Mヶ月）
     ├── export.ts              # データエクスポート/インポート
+    ├── haptics.ts             # 触覚フィードバック（非対応環境では黙って無視）
     ├── image.ts               # resizeImage（アップロード前圧縮）
     └── notifications.ts       # 日記リマインダー・予定通知
 firebase/                      # Firestore / Storage セキュリティルール
-App.tsx                        # ThemeProvider > AuthProvider > CatProvider > Navigation
+web-shims/                     # Web 実行専用の差し替え（metro.config.js が解決）
+App.tsx                        # SafeAreaProvider > ThemeProvider > AuthProvider > CatProvider > Navigation
 ```
+
+`web-shims/` は `platform === 'web'` のときだけ使われます。`@react-native-community/datetimepicker`
+はネイティブ専用で web 実装を持たないため、`<input type="date">` ベースの代替を当てています。
+iOS / Android のビルドはこの分岐を通りません。
 
 ## カラーパレット
 

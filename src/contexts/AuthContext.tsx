@@ -7,6 +7,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import {
@@ -15,10 +16,18 @@ import {
   signInWithCredential,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth, isFirebaseConfigured } from '../lib/firebase';
 import { isMigrationNeeded, migrateLocalData } from '../lib/migration';
 
 WebBrowser.maybeCompleteAuthSession();
+
+// Firebase 未設定時に使うローカル専用ユーザー。
+// クラウド同期はされず、データは端末内（AsyncStorage）にのみ保存される。
+const LOCAL_USER_KEY = '@cat_diary_local_user';
+const LOCAL_USER: AppUser = {
+  id: 'local-user',
+  displayName: 'ローカルユーザー',
+};
 
 // 画面側が特定の認証 SDK に依存しないよう、アプリ独自のユーザー型を公開する
 export type AppUser = {
@@ -31,6 +40,8 @@ export type AppUser = {
 type AuthContextType = {
   user: AppUser | null;
   loading: boolean;
+  /** Firebase 未設定のため端末内のみで動作しているか */
+  isLocalMode: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -38,6 +49,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isLocalMode: false,
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -45,6 +57,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const isLocalMode = !isFirebaseConfigured;
 
   // Google OAuth で id_token を取得し、Firebase Auth に引き渡す
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -55,6 +68,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    // ローカルモードでは Firebase Auth を使わず、保存済みのローカルユーザーを復元する
+    if (isLocalMode) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const saved = await AsyncStorage.getItem(LOCAL_USER_KEY);
+          if (!cancelled && saved) setUser(JSON.parse(saved));
+        } catch (err) {
+          console.error('Failed to restore local user:', err);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser({
@@ -69,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
     return unsubscribe;
-  }, []);
+  }, [isLocalMode]);
 
   useEffect(() => {
     if (response?.type === 'success') {
@@ -90,6 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 初回ログイン時にローカルデータを Firestore へ移行
   useEffect(() => {
+    // ローカルモードでは移行先の Firestore が無いので何もしない
+    if (isLocalMode) return;
     if (user?.id) {
       (async () => {
         try {
@@ -111,6 +144,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   const signInWithGoogle = useCallback(async () => {
+    // ローカルモード: 認証プロバイダを介さず端末内ユーザーで開始する
+    if (isLocalMode) {
+      try {
+        await AsyncStorage.setItem(LOCAL_USER_KEY, JSON.stringify(LOCAL_USER));
+        setUser(LOCAL_USER);
+      } catch (error) {
+        Alert.alert('エラー', 'ローカルユーザーの保存に失敗しました');
+        console.error(error);
+      }
+      return;
+    }
+
     try {
       if (!request) {
         Alert.alert('エラー', 'ログインの準備中です。少し待って再試行してください');
@@ -121,19 +166,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       Alert.alert('エラー', 'ログインに失敗しました');
       console.error(error);
     }
-  }, [request, promptAsync]);
+  }, [isLocalMode, request, promptAsync]);
 
   const signOut = useCallback(async () => {
     try {
+      if (isLocalMode) {
+        await AsyncStorage.removeItem(LOCAL_USER_KEY);
+        setUser(null);
+        return;
+      }
       await firebaseSignOut(auth);
     } catch (error) {
       Alert.alert('エラー', 'ログアウトに失敗しました');
       console.error(error);
     }
-  }, []);
+  }, [isLocalMode]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider
+      value={{ user, loading, isLocalMode, signInWithGoogle, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );

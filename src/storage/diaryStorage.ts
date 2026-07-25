@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { DiaryEntry } from '../types';
 import { db } from '../lib/firebase';
-import { isOnline, diaryToDb, dbToDiary } from '../lib/syncService';
+import { isOnline, withTimeout, diaryToDb, dbToDiary } from '../lib/syncService';
 import { uploadPhoto } from '../lib/photoStorage';
 import { COLLECTIONS } from '../lib/database.types';
 
@@ -77,10 +77,12 @@ export async function getDiaryEntries(userId: string): Promise<DiaryEntry[]> {
 
   if (online) {
     try {
-      const snapshot = await getDocs(
-        query(
-          collection(db, COLLECTIONS.diaryEntries),
-          where('userId', '==', userId)
+      const snapshot = await withTimeout(
+        getDocs(
+          query(
+            collection(db, COLLECTIONS.diaryEntries),
+            where('userId', '==', userId)
+          )
         )
       );
       const entries = snapshot.docs
@@ -116,9 +118,11 @@ export async function saveDiaryEntry(entry: DiaryEntry, userId: string): Promise
   if (online) {
     try {
       const toSave = await withUploadedPhoto(updatedEntry, userId);
-      await setDoc(
-        doc(db, COLLECTIONS.diaryEntries, entry.id),
-        diaryToDb(toSave, userId)
+      await withTimeout(
+        setDoc(
+          doc(db, COLLECTIONS.diaryEntries, entry.id),
+          diaryToDb(toSave, userId)
+        )
       );
     } catch (err) {
       console.error('Failed to save diary entry:', err);
@@ -139,7 +143,7 @@ export async function deleteDiaryEntry(id: string, userId: string): Promise<void
 
   if (online) {
     try {
-      await deleteDoc(doc(db, COLLECTIONS.diaryEntries, id));
+      await withTimeout(deleteDoc(doc(db, COLLECTIONS.diaryEntries, id)));
     } catch (err) {
       console.error('Failed to delete diary entry:', err);
       if (entry) {
@@ -179,6 +183,8 @@ export function calculateStreak(entries: DiaryEntry[]): number {
 
 export async function syncPendingDiaryOps(userId: string): Promise<void> {
   if (diarySyncInProgress) return;
+  // 同期先に到達できないときは試行しない
+  if (!(await isOnline())) return;
   diarySyncInProgress = true;
 
   try {
@@ -190,12 +196,16 @@ export async function syncPendingDiaryOps(userId: string): Promise<void> {
     for (const op of ops) {
       try {
         if (op.type === 'delete') {
-          await deleteDoc(doc(db, COLLECTIONS.diaryEntries, op.entry.id));
+          await withTimeout(
+            deleteDoc(doc(db, COLLECTIONS.diaryEntries, op.entry.id))
+          );
         } else {
           const toSave = await withUploadedPhoto(op.entry, userId);
-          await setDoc(
-            doc(db, COLLECTIONS.diaryEntries, op.entry.id),
-            diaryToDb(toSave, userId)
+          await withTimeout(
+            setDoc(
+              doc(db, COLLECTIONS.diaryEntries, op.entry.id),
+              diaryToDb(toSave, userId)
+            )
           );
         }
         await removePendingOpById(op.id);

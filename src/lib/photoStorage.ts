@@ -6,10 +6,13 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { storage } from './firebase';
+import { withTimeout } from './syncService';
 
 export type PhotoEntityType = 'cats' | 'diary';
 
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+// 写真は本文より重いので、既定より長めの上限を許容する
+const UPLOAD_TIMEOUT_MS = 30000;
 
 export class PhotoSizeError extends Error {
   constructor(message: string) {
@@ -44,9 +47,12 @@ export async function uploadPhoto(
     const blob = await response.blob();
 
     const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+    await withTimeout(
+      uploadBytes(storageRef, blob, { contentType: 'image/jpeg' }),
+      UPLOAD_TIMEOUT_MS
+    );
 
-    return await getDownloadURL(storageRef);
+    return await withTimeout(getDownloadURL(storageRef), UPLOAD_TIMEOUT_MS);
   } catch (err) {
     console.error('Photo upload exception:', err);
     return null;
@@ -56,7 +62,7 @@ export async function uploadPhoto(
 // photoUri（https のダウンロード URL）から Storage 上のオブジェクトを削除する
 export async function deletePhoto(photoUrl: string): Promise<boolean> {
   try {
-    await deleteObject(ref(storage, photoUrl));
+    await withTimeout(deleteObject(ref(storage, photoUrl)));
     return true;
   } catch (err) {
     console.error('Photo delete failed:', err);

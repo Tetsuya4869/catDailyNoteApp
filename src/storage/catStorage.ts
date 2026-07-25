@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { Cat } from '../types';
 import { db } from '../lib/firebase';
-import { isOnline, catToDb, dbToCat } from '../lib/syncService';
+import { isOnline, withTimeout, catToDb, dbToCat } from '../lib/syncService';
 import { uploadPhoto } from '../lib/photoStorage';
 import { COLLECTIONS } from '../lib/database.types';
 
@@ -70,8 +70,10 @@ export async function getCats(userId: string): Promise<Cat[]> {
 
   if (online) {
     try {
-      const snapshot = await getDocs(
-        query(collection(db, COLLECTIONS.cats), where('userId', '==', userId))
+      const snapshot = await withTimeout(
+        getDocs(
+          query(collection(db, COLLECTIONS.cats), where('userId', '==', userId))
+        )
       );
       const cats = snapshot.docs
         .map((d) => dbToCat(d.data()))
@@ -105,7 +107,9 @@ export async function saveCat(cat: Cat, userId: string): Promise<void> {
   if (online) {
     try {
       const toSave = await withUploadedPhoto(cat, userId);
-      await setDoc(doc(db, COLLECTIONS.cats, cat.id), catToDb(toSave, userId));
+      await withTimeout(
+        setDoc(doc(db, COLLECTIONS.cats, cat.id), catToDb(toSave, userId))
+      );
     } catch (err) {
       console.error('Failed to save cat to Firestore:', err);
       await addPendingOp({ type: 'upsert', cat, timestamp: new Date().toISOString() });
@@ -125,7 +129,7 @@ export async function deleteCat(id: string, userId: string): Promise<void> {
 
   if (online) {
     try {
-      await deleteDoc(doc(db, COLLECTIONS.cats, id));
+      await withTimeout(deleteDoc(doc(db, COLLECTIONS.cats, id)));
     } catch (err) {
       console.error('Failed to delete cat from Firestore:', err);
       if (cat) {
@@ -144,6 +148,9 @@ export async function getCatById(id: string): Promise<Cat | null> {
 
 export async function syncPendingCatOps(userId: string): Promise<void> {
   if (catSyncInProgress) return;
+  // 同期先に到達できないときは試行しない。
+  // ここを省くと refreshCats() が毎回タイムアウト分だけ UI をブロックする。
+  if (!(await isOnline())) return;
   catSyncInProgress = true;
 
   try {
@@ -155,12 +162,14 @@ export async function syncPendingCatOps(userId: string): Promise<void> {
     for (const op of ops) {
       try {
         if (op.type === 'delete') {
-          await deleteDoc(doc(db, COLLECTIONS.cats, op.cat.id));
+          await withTimeout(deleteDoc(doc(db, COLLECTIONS.cats, op.cat.id)));
         } else {
           const toSave = await withUploadedPhoto(op.cat, userId);
-          await setDoc(
-            doc(db, COLLECTIONS.cats, op.cat.id),
-            catToDb(toSave, userId)
+          await withTimeout(
+            setDoc(
+              doc(db, COLLECTIONS.cats, op.cat.id),
+              catToDb(toSave, userId)
+            )
           );
         }
         await removePendingOpById(op.id);

@@ -2,15 +2,45 @@ import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Cat, DiaryEntry, HealthRecord, Appointment } from '../types';
 import { DbCat, DbDiaryEntry, DbHealthRecord, DbAppointment } from './database.types';
+import { isFirebaseConfigured } from './firebase';
 
 const SYNC_STATUS_KEY = '@cat_diary_sync_status';
+
+// Firestore の読み書きは「サーバーが応答するまで」解決しない。
+// 端末が繋がっていても経路が詰まっていると永久に待つため、
+// UI が固まらないよう必ずこの上限で打ち切る。
+const REMOTE_TIMEOUT_MS = 8000;
 
 export type SyncStatus = {
   lastSyncAt: string | null;
   hasPendingChanges: boolean;
 };
 
+export class RemoteTimeoutError extends Error {
+  constructor() {
+    super(`リモート処理が ${REMOTE_TIMEOUT_MS}ms 以内に完了しませんでした`);
+    this.name = 'RemoteTimeoutError';
+  }
+}
+
+// 指定時間内に解決しなければ RemoteTimeoutError で reject する。
+// 呼び出し側は既存の catch で pending ops / キャッシュに退避する。
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number = REMOTE_TIMEOUT_MS
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new RemoteTimeoutError()), ms);
+    }),
+  ]);
+}
+
 export async function isOnline(): Promise<boolean> {
+  // Firebase 未設定なら同期先が存在しないので、常にローカル動作にする
+  if (!isFirebaseConfigured) return false;
   const state = await NetInfo.fetch();
   return state.isConnected === true;
 }
