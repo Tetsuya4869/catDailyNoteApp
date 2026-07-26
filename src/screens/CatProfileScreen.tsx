@@ -24,7 +24,6 @@ import {
   DiaryEntry,
   HealthRecord,
   Appointment,
-  catColorEmojis,
   catGenderSymbols,
   moodEmojis,
   healthTypeEmojis,
@@ -43,6 +42,7 @@ import { cancelAppointmentNotification } from '../utils/notifications';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
+import CatFaceIcon from '../components/CatFaceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCatAge } from '../utils/age';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
@@ -223,9 +223,7 @@ export default function CatProfileScreen() {
             <Image source={{ uri: cat.photoUri }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarEmoji}>
-                {catColorEmojis[cat.color]}
-              </Text>
+              <CatFaceIcon color={cat.color} size={56} />
             </View>
           )}
         </View>

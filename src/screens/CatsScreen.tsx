@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Cat, catColorEmojis } from '../types';
+import { Cat } from '../types';
+import CatFaceIcon from '../components/CatFaceIcon';
 import { deleteCat, saveCat } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -91,14 +92,12 @@ export default function CatsScreen() {
           <Image source={{ uri: item.photoUri }} style={styles.photo} />
         ) : (
           <View style={styles.photoPlaceholder}>
-            <Text style={styles.photoPlaceholderText}>
-              {catColorEmojis[item.color]}
-            </Text>
+            <CatFaceIcon color={item.color} size={84} />
           </View>
         )}
         <View style={styles.info}>
           <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.color}>{catColorEmojis[item.color]}</Text>
+          <CatFaceIcon color={item.color} size={20} />
         </View>
       </TouchableOpacity>
     );

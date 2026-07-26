@@ -77,6 +77,7 @@ Stack (モーダル/詳細)
 ```
 src/
 ├── components/
+│   ├── CatFaceIcon.tsx        # 毛色別の猫アイコン（assets/icons/cat-*.png）
 │   └── SyncStatusBanner.tsx   # オフライン/同期中/同期完了バナー + 自動同期
 ├── constants/theme.ts         # カラーパレット（テラコッタ/クリーム）、spacing、borderRadius
 ├── contexts/
@@ -117,6 +118,8 @@ src/
     └── notifications.ts       # 日記リマインダー・予定通知
 firebase/                      # Firestore / Storage セキュリティルール
 web-shims/                     # Web 実行専用の差し替え（metro.config.js が解決）
+scripts/generate_icons.py      # アイコン生成（要 Pillow）。形/色はここで調整
+assets/icons/                  # 毛色別の猫アイコン（生成物）
 App.tsx                        # SafeAreaProvider > ThemeProvider > AuthProvider > CatProvider > Navigation
 ```
 

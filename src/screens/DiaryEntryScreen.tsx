@@ -25,7 +25,6 @@ import {
   PostCategory,
   moodEmojis,
   moodLabels,
-  catColorEmojis,
   postCategoryEmojis,
   postCategoryLabels,
 } from '../types';
@@ -37,6 +36,7 @@ import {
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
+import CatFaceIcon from '../components/CatFaceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { useSnackbar } from '../contexts/SnackbarContext';
 import { resizeImage } from '../utils/image';
@@ -382,7 +382,7 @@ export default function DiaryEntryScreen({ navigation, route }: Props) {
                   style={[styles.catButton, catId === cat.id && styles.catButtonActive]}
                   onPress={() => setCatId(cat.id)}
                 >
-                  <Text style={styles.catEmoji}>{catColorEmojis[cat.color]}</Text>
+                  <CatFaceIcon color={cat.color} size={28} />
                   <Text
                     style={[styles.catLabel, catId === cat.id && styles.catLabelActive]}
                   >

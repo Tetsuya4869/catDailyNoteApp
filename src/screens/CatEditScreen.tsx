@@ -21,12 +21,12 @@ import {
   Cat,
   CatColor,
   CatGender,
-  catColorEmojis,
   catColorLabels,
   catGenderSymbols,
 } from '../types';
 import { saveCat, getCatById, deleteCat } from '../storage/catStorage';
 import { useCats } from '../contexts/CatContext';
+import CatFaceIcon from '../components/CatFaceIcon';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useSnackbar } from '../contexts/SnackbarContext';
@@ -306,7 +306,7 @@ export default function CatEditScreen({ navigation, route }: Props) {
               style={[styles.colorButton, color === c && styles.colorButtonActive]}
               onPress={() => setColor(c)}
             >
-              <Text style={styles.colorEmoji}>{catColorEmojis[c]}</Text>
+              <CatFaceIcon color={c} size={30} />
               <Text
                 style={[
                   styles.colorLabel,

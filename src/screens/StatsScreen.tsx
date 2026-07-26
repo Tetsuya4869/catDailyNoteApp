@@ -15,13 +15,13 @@ import {
   moodEmojis,
   moodLabels,
   DiaryEntry,
-  catColorEmojis,
 } from '../types';
 import { getDiaryEntries, calculateStreak } from '../storage/diaryStorage';
 import { exportDiaryData, importDiaryData } from '../utils/export';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCats } from '../contexts/CatContext';
+import CatFaceIcon from '../components/CatFaceIcon';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
@@ -204,8 +204,9 @@ export default function StatsScreen() {
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${cat.name}の統計`}
               >
+                <CatFaceIcon color={cat.color} size={18} style={styles.chipIcon} />
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {catColorEmojis[cat.color]} {cat.name}
+                  {cat.name}
                 </Text>
               </TouchableOpacity>
             );
@@ -322,12 +323,17 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       borderRadius: borderRadius.full,
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    chipIcon: {
+      marginRight: spacing.xs,
     },
     chipActive: {
       backgroundColor: colors.primary,

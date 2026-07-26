@@ -20,7 +20,6 @@ import {
   DiaryEntry,
   Appointment,
   moodEmojis,
-  catColorEmojis,
   postCategoryEmojis,
   postCategoryLabels,
   healthTypeEmojis,
@@ -30,6 +29,7 @@ import { getUpcomingAppointments } from '../storage/healthStorage';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
+import CatFaceIcon from '../components/CatFaceIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
@@ -272,8 +272,9 @@ export default function HomeScreen() {
                 accessibilityState={{ selected: active }}
                 accessibilityLabel={`${cat.name}の日記を表示`}
               >
+                <CatFaceIcon color={cat.color} size={18} style={styles.chipIcon} />
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {catColorEmojis[cat.color]} {cat.name}
+                  {cat.name}
                 </Text>
               </TouchableOpacity>
             );
@@ -411,12 +412,17 @@ const createStyles = (colors: ThemeColors) =>
       alignItems: 'center',
     },
     chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
       borderRadius: borderRadius.full,
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.border,
+    },
+    chipIcon: {
+      marginRight: spacing.xs,
     },
     chipActive: {
       backgroundColor: colors.primary,
