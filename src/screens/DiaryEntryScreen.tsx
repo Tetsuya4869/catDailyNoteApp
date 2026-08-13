@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { CatMood, DiaryEntry, PostCategory, moodEmojis, moodLabels, catColorEmojis, postCategoryEmojis, postCategoryLabels } from '../types';
-import { saveDiaryEntry, getDiaryEntryById, deleteDiaryEntry } from '../storage/diaryStorage';
+import { getRepository } from '../repositories';
 import { RootStackParamList } from '../navigation/types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCats } from '../contexts/CatContext';
@@ -14,143 +14,20 @@ import { dateOnlyToLocalDate, toDateOnly, todayDateOnly } from '../utils/date';
 import { persistPickedMedia, removeManagedMedia } from '../utils/media';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'DiaryEntry'>;
-  route: RouteProp<RootStackParamList, 'DiaryEntry'>;
-};
-
+const repository = getRepository();
+type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'DiaryEntry'>; route: RouteProp<RootStackParamList, 'DiaryEntry'> };
 const moods: CatMood[] = ['happy', 'sleepy', 'playful', 'hungry', 'relaxed'];
 const categories: PostCategory[] = ['meal', 'play', 'sleep', 'health', 'grooming', 'other'];
 
 export default function DiaryEntryScreen({ navigation, route }: Props) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { cats, selectedCatId } = useCats();
-  const editId = route.params?.id;
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [mood, setMood] = useState<CatMood>('happy');
-  const [category, setCategory] = useState<PostCategory>('other');
-  const [catId, setCatId] = useState<string | undefined>(route.params?.catId || selectedCatId || undefined);
-  const [photoUri, setPhotoUri] = useState<string | undefined>();
-  const [date, setDate] = useState(route.params?.date || todayDateOnly());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [createdAt, setCreatedAt] = useState<string | undefined>();
-
-  useEffect(() => {
-    if (!editId) return;
-    getDiaryEntryById(editId).then((entry) => {
-      if (!entry) return;
-      setTitle(entry.title);
-      setContent(entry.content);
-      setMood(entry.mood);
-      setCategory(entry.category ?? 'other');
-      setCatId(entry.catId);
-      setPhotoUri(entry.photoUri);
-      setDate(entry.date);
-      setCreatedAt(entry.createdAt);
-    });
-  }, [editId]);
-
-  async function pickImage() {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.8 });
-    if (result.canceled || !result.assets[0]) return;
-    const managed = await persistPickedMedia(result.assets[0].uri);
-    if (photoUri && photoUri !== managed) await removeManagedMedia(photoUri);
-    setPhotoUri(managed);
-  }
-
-  function removePhoto() {
-    Alert.alert('写真を削除', '写真を削除しますか？', [
-      { text: 'キャンセル', style: 'cancel' },
-      { text: '削除', style: 'destructive', onPress: async () => { await removeManagedMedia(photoUri); setPhotoUri(undefined); } },
-    ]);
-  }
-
-  async function handleSave() {
-    if (!title.trim()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('エラー', 'タイトルを入力してください');
-      return;
-    }
-    const now = new Date().toISOString();
-    const entry: DiaryEntry = {
-      id: editId || Date.now().toString(),
-      catId,
-      date,
-      title: title.trim(),
-      content: content.trim(),
-      mood,
-      category,
-      photoUri,
-      createdAt: createdAt ?? now,
-      updatedAt: now,
-    };
-    await saveDiaryEntry(entry);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    navigation.goBack();
-  }
-
-  function handleDelete() {
-    if (!editId) return;
-    Alert.alert('削除確認', 'この日記を削除しますか？', [
-      { text: 'キャンセル', style: 'cancel' },
-      { text: '削除', style: 'destructive', onPress: async () => { await deleteDiaryEntry(editId); await removeManagedMedia(photoUri); navigation.goBack(); } },
-    ]);
-  }
-
-  return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}><Text style={styles.dateLabel}>📅 日付</Text><Text style={styles.dateValue}>{date}</Text></TouchableOpacity>
-        {showDatePicker && <DateTimePicker value={dateOnlyToLocalDate(date)} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={(event, selected) => { setShowDatePicker(Platform.OS === 'ios'); if (event.type === 'set' && selected) setDate(toDateOnly(selected)); }} />}
-
-        {photoUri ? (
-          <View style={styles.photoCard}><Image source={{ uri: photoUri }} style={styles.photo} /><View style={styles.photoActions}><TouchableOpacity onPress={pickImage}><Text style={styles.link}>📷 変更</Text></TouchableOpacity><TouchableOpacity onPress={removePhoto}><Text style={[styles.link, { color: colors.danger }]}>✕ 削除</Text></TouchableOpacity></View></View>
-        ) : <TouchableOpacity style={styles.photoPlaceholder} onPress={pickImage}><Text style={styles.photoEmoji}>📷</Text><Text style={styles.muted}>写真を追加</Text></TouchableOpacity>}
-
-        {cats.length > 0 && <><Text style={styles.label}>どの猫？</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChoices}><Choice active={!catId} onPress={() => setCatId(undefined)} label="🐱 指定なし" styles={styles} />{cats.map((cat) => <Choice key={cat.id} active={catId === cat.id} onPress={() => setCatId(cat.id)} label={`${catColorEmojis[cat.color]} ${cat.name}`} styles={styles} />)}</ScrollView></>}
-
-        <Text style={styles.label}>今日の気分</Text><View style={styles.wrap}>{moods.map((item) => <Choice key={item} active={mood === item} onPress={() => setMood(item)} label={`${moodEmojis[item]} ${moodLabels[item]}`} styles={styles} />)}</View>
-        <Text style={styles.label}>カテゴリ</Text><View style={styles.wrap}>{categories.map((item) => <Choice key={item} active={category === item} onPress={() => setCategory(item)} label={`${postCategoryEmojis[item]} ${postCategoryLabels[item]}`} styles={styles} />)}</View>
-
-        <Text style={styles.label}>タイトル</Text><TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="今日のできごと" placeholderTextColor={colors.textPlaceholder} />
-        <Text style={styles.label}>日記</Text><TextInput style={[styles.input, styles.note]} value={content} onChangeText={setContent} placeholder="今日はどんな一日だった？" placeholderTextColor={colors.textPlaceholder} multiline textAlignVertical="top" />
-        {editId && <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}><Text style={styles.deleteText}>🗑 この日記を削除</Text></TouchableOpacity>}
-      </ScrollView>
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}><Text style={styles.saveText}>保存する</Text></TouchableOpacity>
-    </KeyboardAvoidingView>
-  );
+  const { colors } = useTheme(); const styles = useMemo(() => createStyles(colors), [colors]); const { cats, selectedCatId } = useCats(); const editId = route.params?.id;
+  const [title, setTitle] = useState(''); const [content, setContent] = useState(''); const [mood, setMood] = useState<CatMood>('happy'); const [category, setCategory] = useState<PostCategory>('other'); const [catId, setCatId] = useState<string | undefined>(route.params?.catId || selectedCatId || undefined); const [photoUri, setPhotoUri] = useState<string | undefined>(); const [date, setDate] = useState(route.params?.date || todayDateOnly()); const [showDatePicker, setShowDatePicker] = useState(false); const [createdAt, setCreatedAt] = useState<string | undefined>();
+  useEffect(() => { if (!editId) return; repository.getDiaryEntryById(editId).then((entry) => { if (!entry) return; setTitle(entry.title); setContent(entry.content); setMood(entry.mood); setCategory(entry.category ?? 'other'); setCatId(entry.catId); setPhotoUri(entry.photoUri); setDate(entry.date); setCreatedAt(entry.createdAt); }); }, [editId]);
+  async function pickImage() { const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.8 }); if (result.canceled || !result.assets[0]) return; const managed = await persistPickedMedia(result.assets[0].uri); if (photoUri && photoUri !== managed) await removeManagedMedia(photoUri); setPhotoUri(managed); }
+  function removePhoto() { Alert.alert('写真を削除', '写真を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: async () => { await removeManagedMedia(photoUri); setPhotoUri(undefined); } }]); }
+  async function handleSave() { if (!title.trim()) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); Alert.alert('エラー', 'タイトルを入力してください'); return; } const now = new Date().toISOString(); const entry: DiaryEntry = { id: editId || Date.now().toString(), catId, date, title: title.trim(), content: content.trim(), mood, category, photoUri, createdAt: createdAt ?? now, updatedAt: now }; await repository.saveDiaryEntry(entry); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); navigation.goBack(); }
+  function handleDelete() { if (!editId) return; Alert.alert('削除確認', 'この日記を削除しますか？', [{ text: 'キャンセル', style: 'cancel' }, { text: '削除', style: 'destructive', onPress: async () => { await repository.deleteDiaryEntry(editId); await removeManagedMedia(photoUri); navigation.goBack(); } }]); }
+  return <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.content}><TouchableOpacity style={styles.dateButton} onPress={() => setShowDatePicker(true)}><Text style={styles.dateLabel}>📅 日付</Text><Text style={styles.dateValue}>{date}</Text></TouchableOpacity>{showDatePicker && <DateTimePicker value={dateOnlyToLocalDate(date)} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} maximumDate={new Date()} onChange={(event, selected) => { setShowDatePicker(Platform.OS === 'ios'); if (event.type === 'set' && selected) setDate(toDateOnly(selected)); }} />}{photoUri ? <View style={styles.photoCard}><Image source={{ uri: photoUri }} style={styles.photo} /><View style={styles.photoActions}><TouchableOpacity onPress={pickImage}><Text style={styles.link}>📷 変更</Text></TouchableOpacity><TouchableOpacity onPress={removePhoto}><Text style={[styles.link, { color: colors.danger }]}>✕ 削除</Text></TouchableOpacity></View></View> : <TouchableOpacity style={styles.photoPlaceholder} onPress={pickImage}><Text style={styles.photoEmoji}>📷</Text><Text style={styles.muted}>写真を追加</Text></TouchableOpacity>}{cats.length > 0 && <><Text style={styles.label}>どの猫？</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalChoices}><Choice active={!catId} onPress={() => setCatId(undefined)} label="🐱 指定なし" styles={styles} />{cats.map((cat) => <Choice key={cat.id} active={catId === cat.id} onPress={() => setCatId(cat.id)} label={`${catColorEmojis[cat.color]} ${cat.name}`} styles={styles} />)}</ScrollView></>}<Text style={styles.label}>今日の気分</Text><View style={styles.wrap}>{moods.map((item) => <Choice key={item} active={mood === item} onPress={() => setMood(item)} label={`${moodEmojis[item]} ${moodLabels[item]}`} styles={styles} />)}</View><Text style={styles.label}>カテゴリ</Text><View style={styles.wrap}>{categories.map((item) => <Choice key={item} active={category === item} onPress={() => setCategory(item)} label={`${postCategoryEmojis[item]} ${postCategoryLabels[item]}`} styles={styles} />)}</View><Text style={styles.label}>タイトル</Text><TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="今日のできごと" placeholderTextColor={colors.textPlaceholder} /><Text style={styles.label}>日記</Text><TextInput style={[styles.input, styles.note]} value={content} onChangeText={setContent} placeholder="今日はどんな一日だった？" placeholderTextColor={colors.textPlaceholder} multiline textAlignVertical="top" />{editId && <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}><Text style={styles.deleteText}>🗑 この日記を削除</Text></TouchableOpacity>}</ScrollView><TouchableOpacity style={styles.saveButton} onPress={handleSave}><Text style={styles.saveText}>保存する</Text></TouchableOpacity></KeyboardAvoidingView>;
 }
-
-function Choice({ active, onPress, label, styles }: { active: boolean; onPress: () => void; label: string; styles: ReturnType<typeof createStyles> }) {
-  return <TouchableOpacity style={[styles.choice, active && styles.choiceActive]} onPress={onPress}><Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text></TouchableOpacity>;
-}
-
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.xl },
-  dateButton: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.lg, marginBottom: spacing.xl },
-  dateLabel: { color: colors.textSecondary },
-  dateValue: { color: colors.text, fontWeight: 'bold' },
-  photoCard: { backgroundColor: colors.card, borderRadius: borderRadius.lg, overflow: 'hidden', marginBottom: spacing.xl },
-  photo: { width: '100%', height: 200 },
-  photoActions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, padding: spacing.md },
-  link: { color: colors.primary, fontWeight: 'bold' },
-  photoPlaceholder: { height: 180, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, borderRadius: borderRadius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl },
-  photoEmoji: { fontSize: 40, marginBottom: spacing.sm },
-  muted: { color: colors.textMuted },
-  label: { color: colors.textSecondary, fontWeight: 'bold', fontSize: 15, marginBottom: spacing.sm },
-  horizontalChoices: { gap: spacing.sm, marginBottom: spacing.xl },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl },
-  choice: { backgroundColor: colors.card, borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  choiceActive: { backgroundColor: colors.primary },
-  choiceText: { color: colors.textSecondary, fontSize: 12 },
-  choiceTextActive: { color: '#fff', fontWeight: 'bold' },
-  input: { backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.lg, color: colors.text, marginBottom: spacing.xl },
-  note: { minHeight: 140 },
-  deleteButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center' },
-  deleteText: { color: colors.danger, fontWeight: 'bold' },
-  saveButton: { backgroundColor: colors.primary, margin: spacing.xl, padding: spacing.lg, borderRadius: borderRadius.md, alignItems: 'center' },
-  saveText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-});
+function Choice({ active, onPress, label, styles }: { active: boolean; onPress: () => void; label: string; styles: ReturnType<typeof createStyles> }) { return <TouchableOpacity style={[styles.choice, active && styles.choiceActive]} onPress={onPress}><Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text></TouchableOpacity>; }
+const createStyles = (colors: ThemeColors) => StyleSheet.create({ container: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.xl }, dateButton: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.lg, marginBottom: spacing.xl }, dateLabel: { color: colors.textSecondary }, dateValue: { color: colors.text, fontWeight: 'bold' }, photoCard: { backgroundColor: colors.card, borderRadius: borderRadius.lg, overflow: 'hidden', marginBottom: spacing.xl }, photo: { width: '100%', height: 200 }, photoActions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, padding: spacing.md }, link: { color: colors.primary, fontWeight: 'bold' }, photoPlaceholder: { height: 180, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, borderRadius: borderRadius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl }, photoEmoji: { fontSize: 40, marginBottom: spacing.sm }, muted: { color: colors.textMuted }, label: { color: colors.textSecondary, fontWeight: 'bold', fontSize: 15, marginBottom: spacing.sm }, horizontalChoices: { gap: spacing.sm, marginBottom: spacing.xl }, wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl }, choice: { backgroundColor: colors.card, borderRadius: borderRadius.full, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }, choiceActive: { backgroundColor: colors.primary }, choiceText: { color: colors.textSecondary, fontSize: 12 }, choiceTextActive: { color: '#fff', fontWeight: 'bold' }, input: { backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.lg, color: colors.text, marginBottom: spacing.xl }, note: { minHeight: 140 }, deleteButton: { borderWidth: 1, borderColor: colors.danger, borderRadius: borderRadius.md, padding: spacing.md, alignItems: 'center' }, deleteText: { color: colors.danger, fontWeight: 'bold' }, saveButton: { backgroundColor: colors.primary, margin: spacing.xl, padding: spacing.lg, borderRadius: borderRadius.md, alignItems: 'center' }, saveText: { color: '#fff', fontSize: 18, fontWeight: 'bold' } });
