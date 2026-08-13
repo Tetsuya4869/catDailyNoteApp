@@ -9,9 +9,9 @@ import { Cat, CatColor, CatGender, catColorEmojis, catColorLabels, catGenderSymb
 import { getRepository } from '../repositories';
 import { useCats } from '../contexts/CatContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useManagedPhoto } from '../hooks/useManagedPhoto';
 import { RootStackParamList } from '../navigation/types';
 import { dateOnlyToLocalDate, toDateOnly } from '../utils/date';
-import { persistPickedMedia, removeManagedMedia } from '../utils/media';
 import { spacing, borderRadius, ThemeColors } from '../constants/theme';
 
 const repository = getRepository();
@@ -21,11 +21,72 @@ const genders: CatGender[] = ['male', 'female', 'unknown'];
 const genderLabels: Record<CatGender, string> = { male: 'オス', female: 'メス', unknown: '不明' };
 
 export default function CatEditScreen({ navigation, route }: Props) {
-  const { colors } = useTheme(); const styles = useMemo(() => createStyles(colors), [colors]); const { refreshCats } = useCats(); const editId = route.params?.id;
-  const [name, setName] = useState(''); const [color, setColor] = useState<CatColor>('orange'); const [gender, setGender] = useState<CatGender>('unknown'); const [birthDate, setBirthDate] = useState<string | undefined>(); const [showDatePicker, setShowDatePicker] = useState(false); const [photoUri, setPhotoUri] = useState<string | undefined>(); const [createdAt, setCreatedAt] = useState<string | undefined>();
-  useEffect(() => { if (!editId) return; repository.getCatById(editId).then((cat) => { if (!cat) return; setName(cat.name); setColor(cat.color); setGender(cat.gender ?? 'unknown'); setBirthDate(cat.birthDate); setPhotoUri(cat.photoUri); setCreatedAt(cat.createdAt); }); }, [editId]);
-  async function pickImage() { const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.8 }); if (result.canceled || !result.assets[0]) return; const managed = await persistPickedMedia(result.assets[0].uri); if (photoUri && photoUri !== managed) await removeManagedMedia(photoUri); setPhotoUri(managed); }
-  async function handleSave() { if (!name.trim()) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); Alert.alert('エラー', '名前を入力してください'); return; } const cat: Cat = { id: editId || Date.now().toString(), name: name.trim(), color, gender, birthDate, photoUri, createdAt: createdAt ?? new Date().toISOString() }; await repository.saveCat(cat); await refreshCats(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); navigation.goBack(); }
-  return <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.content}><TouchableOpacity style={styles.photoButton} onPress={pickImage}>{photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoEmoji}>📷</Text><Text style={styles.muted}>写真を追加</Text></View>}</TouchableOpacity><Text style={styles.label}>名前</Text><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="ミケ、タマなど" placeholderTextColor={colors.textPlaceholder} /><Text style={styles.label}>毛色</Text><View style={styles.wrap}>{catColors.map((item) => <TouchableOpacity key={item} style={[styles.choice, color === item && styles.active]} onPress={() => setColor(item)}><Text style={styles.choiceEmoji}>{catColorEmojis[item]}</Text><Text style={[styles.choiceText, color === item && styles.activeText]}>{catColorLabels[item]}</Text></TouchableOpacity>)}</View><Text style={styles.label}>性別</Text><View style={styles.row}>{genders.map((item) => <TouchableOpacity key={item} style={[styles.gender, gender === item && styles.active]} onPress={() => setGender(item)}><Text style={[styles.genderText, gender === item && styles.activeText]}>{catGenderSymbols[item]} {genderLabels[item]}</Text></TouchableOpacity>)}</View><Text style={styles.label}>誕生日</Text><TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}><Text style={birthDate ? styles.dateText : styles.muted}>{birthDate ?? '未設定（タップして選択）'}</Text></TouchableOpacity>{!!birthDate && <TouchableOpacity onPress={() => setBirthDate(undefined)}><Text style={styles.clear}>誕生日をクリア</Text></TouchableOpacity>}{showDatePicker && <DateTimePicker value={birthDate ? dateOnlyToLocalDate(birthDate) : new Date()} mode="date" maximumDate={new Date()} onChange={(event, selected) => { setShowDatePicker(Platform.OS === 'ios'); if (event.type === 'set' && selected) setBirthDate(toDateOnly(selected)); }} />}</ScrollView><TouchableOpacity style={styles.save} onPress={handleSave}><Text style={styles.saveText}>保存する</Text></TouchableOpacity></KeyboardAvoidingView>;
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { refreshCats } = useCats();
+  const editId = route.params?.id;
+  const [name, setName] = useState('');
+  const [color, setColor] = useState<CatColor>('orange');
+  const [gender, setGender] = useState<CatGender>('unknown');
+  const [birthDate, setBirthDate] = useState<string | undefined>();
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [createdAt, setCreatedAt] = useState<string | undefined>();
+  const { photoUri, loadOriginal, selectPickedUri, commit: commitPhoto } = useManagedPhoto();
+
+  useEffect(() => {
+    if (!editId) return;
+    repository.getCatById(editId).then((cat) => {
+      if (!cat) return;
+      setName(cat.name);
+      setColor(cat.color);
+      setGender(cat.gender ?? 'unknown');
+      setBirthDate(cat.birthDate);
+      loadOriginal(cat.photoUri);
+      setCreatedAt(cat.createdAt);
+    });
+  }, [editId]);
+
+  async function pickImage() {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled && result.assets[0]) await selectPickedUri(result.assets[0].uri);
+  }
+
+  async function handleSave() {
+    if (!name.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('エラー', '名前を入力してください');
+      return;
+    }
+    const cat: Cat = {
+      id: editId || Date.now().toString(),
+      name: name.trim(),
+      color,
+      gender,
+      birthDate,
+      photoUri,
+      createdAt: createdAt ?? new Date().toISOString(),
+    };
+    await repository.saveCat(cat);
+    await commitPhoto();
+    await refreshCats();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    navigation.goBack();
+  }
+
+  return <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <ScrollView contentContainerStyle={styles.content}>
+      <TouchableOpacity style={styles.photoButton} onPress={pickImage}>{photoUri ? <Image source={{ uri: photoUri }} style={styles.photo} /> : <View style={styles.photoPlaceholder}><Text style={styles.photoEmoji}>📷</Text><Text style={styles.muted}>写真を追加</Text></View>}</TouchableOpacity>
+      <Text style={styles.label}>名前</Text><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="ミケ、タマなど" placeholderTextColor={colors.textPlaceholder} />
+      <Text style={styles.label}>毛色</Text><View style={styles.wrap}>{catColors.map((item) => <TouchableOpacity key={item} style={[styles.choice, color === item && styles.active]} onPress={() => setColor(item)}><Text style={styles.choiceEmoji}>{catColorEmojis[item]}</Text><Text style={[styles.choiceText, color === item && styles.activeText]}>{catColorLabels[item]}</Text></TouchableOpacity>)}</View>
+      <Text style={styles.label}>性別</Text><View style={styles.row}>{genders.map((item) => <TouchableOpacity key={item} style={[styles.gender, gender === item && styles.active]} onPress={() => setGender(item)}><Text style={[styles.genderText, gender === item && styles.activeText]}>{catGenderSymbols[item]} {genderLabels[item]}</Text></TouchableOpacity>)}</View>
+      <Text style={styles.label}>誕生日</Text><TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}><Text style={birthDate ? styles.dateText : styles.muted}>{birthDate ?? '未設定（タップして選択）'}</Text></TouchableOpacity>
+      {!!birthDate && <TouchableOpacity onPress={() => setBirthDate(undefined)}><Text style={styles.clear}>誕生日をクリア</Text></TouchableOpacity>}
+      {showDatePicker && <DateTimePicker value={birthDate ? dateOnlyToLocalDate(birthDate) : new Date()} mode="date" maximumDate={new Date()} onChange={(event, selected) => { setShowDatePicker(Platform.OS === 'ios'); if (event.type === 'set' && selected) setBirthDate(toDateOnly(selected)); }} />}
+    </ScrollView>
+    <TouchableOpacity style={styles.save} onPress={handleSave}><Text style={styles.saveText}>保存する</Text></TouchableOpacity>
+  </KeyboardAvoidingView>;
 }
-const createStyles = (colors: ThemeColors) => StyleSheet.create({ container: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.xl }, photoButton: { alignSelf: 'center', marginBottom: spacing.xl, borderRadius: 75, overflow: 'hidden' }, photo: { width: 150, height: 150, borderRadius: 75 }, photoPlaceholder: { width: 150, height: 150, borderRadius: 75, backgroundColor: colors.backgroundMuted, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, photoEmoji: { fontSize: 40, marginBottom: spacing.sm }, muted: { color: colors.textMuted }, label: { fontSize: 15, fontWeight: 'bold', color: colors.textSecondary, marginBottom: spacing.sm }, input: { backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.lg, color: colors.text, marginBottom: spacing.xl }, wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl }, row: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl }, choice: { minWidth: 74, alignItems: 'center', backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.sm }, choiceEmoji: { fontSize: 24 }, choiceText: { color: colors.textSecondary, fontSize: 10, marginTop: 4 }, gender: { flex: 1, alignItems: 'center', backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.md }, genderText: { color: colors.textSecondary }, active: { backgroundColor: colors.primary }, activeText: { color: '#fff', fontWeight: 'bold' }, dateText: { color: colors.text, fontSize: 16 }, clear: { color: colors.primary, marginTop: -spacing.lg, marginBottom: spacing.xl }, save: { backgroundColor: colors.primary, margin: spacing.xl, padding: spacing.lg, borderRadius: borderRadius.md, alignItems: 'center' }, saveText: { color: '#fff', fontSize: 18, fontWeight: 'bold' } });
+
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background }, content: { padding: spacing.xl }, photoButton: { alignSelf: 'center', marginBottom: spacing.xl, borderRadius: 75, overflow: 'hidden' }, photo: { width: 150, height: 150, borderRadius: 75 }, photoPlaceholder: { width: 150, height: 150, borderRadius: 75, backgroundColor: colors.backgroundMuted, borderWidth: 2, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }, photoEmoji: { fontSize: 40, marginBottom: spacing.sm }, muted: { color: colors.textMuted }, label: { fontSize: 15, fontWeight: 'bold', color: colors.textSecondary, marginBottom: spacing.sm }, input: { backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.lg, color: colors.text, marginBottom: spacing.xl }, wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl }, row: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl }, choice: { minWidth: 74, alignItems: 'center', backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.sm }, choiceEmoji: { fontSize: 24 }, choiceText: { color: colors.textSecondary, fontSize: 10, marginTop: 4 }, gender: { flex: 1, alignItems: 'center', backgroundColor: colors.card, borderRadius: borderRadius.md, padding: spacing.md }, genderText: { color: colors.textSecondary }, active: { backgroundColor: colors.primary }, activeText: { color: '#fff', fontWeight: 'bold' }, dateText: { color: colors.text, fontSize: 16 }, clear: { color: colors.primary, marginTop: -spacing.lg, marginBottom: spacing.xl }, save: { backgroundColor: colors.primary, margin: spacing.xl, padding: spacing.lg, borderRadius: borderRadius.md, alignItems: 'center' }, saveText: { color: '#fff', fontSize: 18, fontWeight: 'bold' }
+});
