@@ -32,14 +32,12 @@ beforeEach(async () => {
 
 describe('diaryStorage', () => {
   it('returns an empty array when no entries exist', async () => {
-    const entries = await getDiaryEntries();
-    expect(entries).toEqual([]);
+    expect(await getDiaryEntries()).toEqual([]);
   });
 
   it('saves a new entry and reads it back', async () => {
     const entry = makeEntry({ id: 'a', title: '初日記' });
     await saveDiaryEntry(entry);
-
     const entries = await getDiaryEntries();
     expect(entries).toHaveLength(1);
     expect(entries[0].title).toBe('初日記');
@@ -48,7 +46,6 @@ describe('diaryStorage', () => {
   it('prepends newly created entries', async () => {
     await saveDiaryEntry(makeEntry({ id: 'a', title: '1番目' }));
     await saveDiaryEntry(makeEntry({ id: 'b', title: '2番目' }));
-
     const entries = await getDiaryEntries();
     expect(entries.map((e) => e.id)).toEqual(['b', 'a']);
   });
@@ -56,30 +53,24 @@ describe('diaryStorage', () => {
   it('updates an existing entry in place instead of duplicating', async () => {
     await saveDiaryEntry(makeEntry({ id: 'a', title: '元のタイトル' }));
     await saveDiaryEntry(makeEntry({ id: 'a', title: '更新後タイトル' }));
-
     const entries = await getDiaryEntries();
     expect(entries).toHaveLength(1);
     expect(entries[0].title).toBe('更新後タイトル');
   });
 
-  it('refreshes updatedAt when updating an entry', async () => {
-    const original = makeEntry({
-      id: 'a',
-      updatedAt: '2020-01-01T00:00:00.000Z',
-    });
+  it('preserves the supplied updatedAt when updating an entry', async () => {
+    const updatedAt = '2020-01-01T00:00:00.000Z';
+    const original = makeEntry({ id: 'a', updatedAt });
     await saveDiaryEntry(original);
     await saveDiaryEntry({ ...original, title: '変更' });
-
     const [entry] = await getDiaryEntries();
-    expect(entry.updatedAt).not.toBe('2020-01-01T00:00:00.000Z');
+    expect(entry.updatedAt).toBe(updatedAt);
   });
 
   it('deletes an entry by id', async () => {
     await saveDiaryEntry(makeEntry({ id: 'a' }));
     await saveDiaryEntry(makeEntry({ id: 'b' }));
-
     await deleteDiaryEntry('a');
-
     const entries = await getDiaryEntries();
     expect(entries.map((e) => e.id)).toEqual(['b']);
   });
@@ -91,8 +82,7 @@ describe('diaryStorage', () => {
   });
 
   it('returns null when an entry id is not found', async () => {
-    const found = await getDiaryEntryById('missing');
-    expect(found).toBeNull();
+    expect(await getDiaryEntryById('missing')).toBeNull();
   });
 });
 
@@ -108,8 +98,7 @@ describe('calculateStreak', () => {
   });
 
   it('returns 1 for only today', () => {
-    const e = makeEntry({ id: 'a', date: daysAgo(0) });
-    expect(calculateStreak([e])).toBe(1);
+    expect(calculateStreak([makeEntry({ id: 'a', date: daysAgo(0) })])).toBe(1);
   });
 
   it('counts consecutive days including today', () => {
@@ -125,7 +114,7 @@ describe('calculateStreak', () => {
     const entries = [
       makeEntry({ id: 'a', date: daysAgo(0) }),
       makeEntry({ id: 'b', date: daysAgo(1) }),
-      makeEntry({ id: 'c', date: daysAgo(3) }), // gap at day 2
+      makeEntry({ id: 'c', date: daysAgo(3) }),
     ];
     expect(calculateStreak(entries)).toBe(2);
   });
