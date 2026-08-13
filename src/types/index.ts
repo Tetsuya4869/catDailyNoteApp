@@ -6,10 +6,11 @@ export interface Cat {
   name: string;
   color: CatColor;
   gender?: CatGender;
-  birthDate?: string;
+  birthDate?: string; // yyyy-MM-dd (date-only)
   weightGoal?: number;
   photoUri?: string;
-  createdAt: string;
+  createdAt: string; // ISO timestamp
+  archivedAt?: string; // ISO timestamp. 物理削除せず非表示にするために使用
 }
 
 export const catGenderSymbols: Record<CatGender, string> = {
@@ -42,15 +43,15 @@ export const catColorLabels: Record<CatColor, string> = {
 export interface DiaryEntry {
   id: string;
   catId?: string;
-  date: string;
+  date: string; // yyyy-MM-dd (date-only)
   title: string;
   content: string;
   mood: CatMood;
   photoUri?: string;
   category?: PostCategory;
   favorite?: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp
 }
 
 export type CatMood = 'happy' | 'sleepy' | 'playful' | 'hungry' | 'relaxed';
@@ -105,11 +106,11 @@ export interface HealthRecord {
   id: string;
   catId: string;
   type: HealthType;
-  date: string;
+  date: string; // yyyy-MM-dd (date-only)
   weightKg?: number;
   title?: string;
   note?: string;
-  createdAt: string;
+  createdAt: string; // ISO timestamp
 }
 
 export const healthTypeEmojis: Record<HealthType, string> = {
@@ -131,7 +132,7 @@ export interface Appointment {
   id: string;
   catId: string;
   type: 'vet' | 'vaccine';
-  date: string;
+  date: string; // yyyy-MM-dd (date-only)
   title: string;
   note?: string;
   done: boolean;
