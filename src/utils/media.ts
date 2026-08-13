@@ -39,12 +39,34 @@ export type BackupMedia = {
 
 export async function encodeMedia(uri?: string): Promise<BackupMedia | undefined> {
   if (!uri) return undefined;
-  const info = await FileSystem.getInfoAsync(uri);
-  if (!info.exists) return undefined;
-  return {
-    filename: uri.split('/').pop() || `photo-${Date.now()}.jpg`,
-    base64: await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 }),
-  };
+
+  let readableUri = uri;
+  let temporaryUri: string | undefined;
+
+  if (/^https?:\/\//.test(uri)) {
+    const ext = extensionFromUri(uri);
+    temporaryUri = `${FileSystem.cacheDirectory}cat-diary-backup-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    try {
+      const download = await FileSystem.downloadAsync(uri, temporaryUri);
+      if (download.status < 200 || download.status >= 300) return undefined;
+      readableUri = download.uri;
+    } catch {
+      return undefined;
+    }
+  }
+
+  try {
+    const info = await FileSystem.getInfoAsync(readableUri);
+    if (!info.exists) return undefined;
+    return {
+      filename: uri.split('?')[0].split('/').pop() || `photo-${Date.now()}.jpg`,
+      base64: await FileSystem.readAsStringAsync(readableUri, { encoding: FileSystem.EncodingType.Base64 }),
+    };
+  } finally {
+    if (temporaryUri) {
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => undefined);
+    }
+  }
 }
 
 export async function restoreMedia(media?: BackupMedia): Promise<string | undefined> {
