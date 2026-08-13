@@ -1,14 +1,17 @@
-// フェーズ1で実装済みのルート。完全な目標構成は DESIGN.md を参照。
+import { HealthType } from '../types';
+
 export type RootStackParamList = {
   MainTabs: undefined;
   CatProfile: { catId: string };
-  DiaryEntry: { id?: string; catId?: string };
-  NewPost: undefined; // 中央FAB用ダミー（tabBarButtonで横取り）
+  DiaryEntry: { id?: string; catId?: string; date?: string };
+  DayDetail: { date: string };
+  HealthRecordEdit: { catId: string; type?: HealthType };
+  AppointmentEdit: { catId: string; id?: string };
+  NewPost: undefined;
   CatEdit: { id?: string };
   Stats: undefined;
 };
 
-// 案A タイムライン中心: 4タブ ＋ 中央の新規投稿ボタン
 export type TabParamList = {
   Home: undefined;
   Calendar: undefined;

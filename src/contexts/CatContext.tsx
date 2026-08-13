@@ -1,13 +1,8 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  ReactNode,
-} from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { Cat } from '../types';
-import { getCats } from '../storage/catStorage';
+import { getRepository } from '../repositories';
+
+const repository = getRepository();
 
 type CatContextType = {
   cats: Cat[];
@@ -16,35 +11,21 @@ type CatContextType = {
   refreshCats: () => Promise<void>;
 };
 
-const CatContext = createContext<CatContextType>({
-  cats: [],
-  selectedCatId: null,
-  setSelectedCatId: () => {},
-  refreshCats: async () => {},
-});
+const CatContext = createContext<CatContextType>({ cats: [], selectedCatId: null, setSelectedCatId: () => {}, refreshCats: async () => {} });
 
 export function CatProvider({ children }: { children: ReactNode }) {
   const [cats, setCats] = useState<Cat[]>([]);
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
 
   const refreshCats = useCallback(async () => {
-    const data = await getCats();
+    const data = await repository.getCats();
     setCats(data);
+    setSelectedCatId((current) => current && data.some((cat) => cat.id === current) ? current : null);
   }, []);
 
-  useEffect(() => {
-    refreshCats();
-  }, [refreshCats]);
+  useEffect(() => { refreshCats(); }, [refreshCats]);
 
-  return (
-    <CatContext.Provider
-      value={{ cats, selectedCatId, setSelectedCatId, refreshCats }}
-    >
-      {children}
-    </CatContext.Provider>
-  );
+  return <CatContext.Provider value={{ cats, selectedCatId, setSelectedCatId, refreshCats }}>{children}</CatContext.Provider>;
 }
 
-export function useCats() {
-  return useContext(CatContext);
-}
+export function useCats() { return useContext(CatContext); }

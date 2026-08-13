@@ -85,7 +85,7 @@ describe('healthStorage - records', () => {
     expect(records.map((r) => r.id)).toEqual(['b', 'a']);
   });
 
-  it('returns weight series oldest first, ignoring other types', async () => {
+  it('returns weight series oldest first using date-only values', async () => {
     await saveHealthRecord(
       makeRecord({
         id: 'a',
@@ -107,8 +107,8 @@ describe('healthStorage - records', () => {
     );
     const series = await getWeightSeries('cat1');
     expect(series).toEqual([
-      { date: '2026-01-01T00:00:00.000Z', weightKg: 4.0 },
-      { date: '2026-02-01T00:00:00.000Z', weightKg: 4.2 },
+      { date: '2026-01-01', weightKg: 4.0 },
+      { date: '2026-02-01', weightKg: 4.2 },
     ]);
   });
 
