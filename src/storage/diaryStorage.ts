@@ -43,10 +43,9 @@ export async function saveDiaryEntry(entry: DiaryEntry): Promise<void> {
   const existingIndex = entries.findIndex((e) => e.id === normalized.id);
 
   if (existingIndex >= 0) {
-    entries[existingIndex] = {
-      ...normalized,
-      updatedAt: new Date().toISOString(),
-    };
+    // updatedAt is owned by the application layer. Preserving the supplied value
+    // avoids mutating timestamps when a record is restored or synced from remote.
+    entries[existingIndex] = normalized;
   } else {
     entries.unshift(normalized);
   }
@@ -76,7 +75,6 @@ export function calculateStreak(entries: DiaryEntry[], now: Date = new Date()): 
   let cursor = todayDateOnly(now);
   let streak = 0;
 
-  // 今日未記録でも、昨日まで継続していればストリークは維持する。
   if (!dates.has(cursor)) {
     cursor = shiftDateOnly(cursor, -1);
   }
